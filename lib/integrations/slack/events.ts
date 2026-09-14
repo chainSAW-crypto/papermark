@@ -118,18 +118,28 @@ export class SlackEventManager {
   }
 }
 
-export const slackEventManager = new SlackEventManager();
+// Lazily instantiate - the constructor throws if SLACK_CLIENT_ID/SECRET
+// aren't set, which must not happen at module load time (breaks builds and
+// any request path that imports this file, even when Slack isn't in use).
+let _slackEventManager: SlackEventManager | null = null;
+function getSlackEventManager(): SlackEventManager {
+  if (!_slackEventManager) _slackEventManager = new SlackEventManager();
+  return _slackEventManager;
+}
 
 export async function notifyDocumentView(
   data: Omit<SlackEventData, "eventType">,
 ) {
-  await slackEventManager.processEvent({ ...data, eventType: "document_view" });
+  await getSlackEventManager().processEvent({
+    ...data,
+    eventType: "document_view",
+  });
 }
 
 export async function notifyDataroomAccess(
   data: Omit<SlackEventData, "eventType">,
 ) {
-  await slackEventManager.processEvent({
+  await getSlackEventManager().processEvent({
     ...data,
     eventType: "dataroom_access",
   });
@@ -138,7 +148,7 @@ export async function notifyDataroomAccess(
 export async function notifyDocumentDownload(
   data: Omit<SlackEventData, "eventType">,
 ) {
-  await slackEventManager.processEvent({
+  await getSlackEventManager().processEvent({
     ...data,
     eventType: "document_download",
   });
