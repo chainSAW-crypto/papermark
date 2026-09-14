@@ -1,0 +1,68 @@
+# Deploy as a "Docker Compose" resource in Coolify (separate from the main
+# Papermark app and from the Redis compose). Self-hosted S3-compatible
+# object storage for uploaded documents.
+#
+# Before deploying, change MINIO_ROOT_USER / MINIO_ROOT_PASSWORD below to
+# real values — these are the admin login for the MinIO console, and also
+# usable directly as an access key/secret pair if you don't want to create
+# a separate scoped key.
+#
+# Domains for Docker Compose services in Coolify are NOT set through a UI
+# field — they're declared here via Coolify's "magic" SERVICE_FQDN_<NAME>_<PORT>
+# environment variables (see https://coolify.io/docs/knowledge-base/docker/compose).
+# <NAME> must match the compose service name below ("minio") uppercased.
+# Leave the values blank: if the server has a Wildcard Domain configured
+# (Servers -> your server -> General -> Wildcard Domain), Coolify auto-fills
+# a subdomain on deploy. Otherwise set it yourself to a domain you've already
+# pointed at this server's IP via DNS, e.g. SERVICE_FQDN_MINIO_9000=minio-api.yourdomain.com
+#
+# After deploy, the resulting values show up under this service's
+# "Environment Variables" tab (service-level, not the per-container page) —
+# that's also where you can edit them after the fact.
+#
+# Only SERVICE_FQDN_MINIO_9000 (S3 API) is declared below. Coolify has a
+# known bug where declaring SERVICE_FQDN_<NAME>_<PORT> twice for the same
+# compose service (once per port) can silently fail to generate ANY proxy
+# config at all (see https://github.com/coollabsio/coolify/issues/1904).
+# The console (port 9001) isn't needed by the app - manage buckets via
+# `docker exec` + the `mc` CLI, or a temporary SSH port-forward, instead.
+#
+# After deploy:
+#   1. Confirm SERVICE_FQDN_MINIO_9000 got a domain assigned (check this
+#      service's "Environment Variables" tab, and confirm
+#      /data/coolify/proxy/dynamic/ on the host got a new file for it).
+#   3. Buckets -> Create Bucket -> make "papermark-docs" and
+#      "papermark-archive".
+#   4. Access Keys -> Create Access Key -> note the key ID + secret
+#      (or just reuse MINIO_ROOT_USER/PASSWORD as the key pair).
+#   5. Set in the Papermark app's env vars:
+#        NEXT_PUBLIC_UPLOAD_TRANSPORT=s3
+#        NEXT_PRIVATE_UPLOAD_REGION=us-east-1
+#        NEXT_PRIVATE_UPLOAD_ENDPOINT=https://<your-minio-domain>
+#        NEXT_PRIVATE_UPLOAD_BUCKET=papermark-docs
+#        NEXT_PRIVATE_ARCHIVE_BUCKET=papermark-archive
+#        NEXT_PRIVATE_UPLOAD_ACCESS_KEY_ID=<access key>
+#        NEXT_PRIVATE_UPLOAD_SECRET_ACCESS_KEY=<secret key>
+#        NEXT_PRIVATE_UPLOAD_DISTRIBUTION_HOST=<your-minio-domain, no https://>
+
+services:
+  minio:
+    # minio/minio on Docker Hub is no longer reliably pullable (MinIO's 2025
+    # Docker Hub distribution changes cause "pull access denied" even though
+    # the image is public). Quay.io is MinIO's other official registry and
+    # still works.
+    image: quay.io/minio/minio:latest
+    restart: unless-stopped
+    ports:
+      - "9000"
+      - "9001"
+    environment:
+      MINIO_ROOT_USER: change-me-admin
+      MINIO_ROOT_PASSWORD: change-me-to-a-long-random-secret
+      SERVICE_FQDN_MINIO_9000:
+    volumes:
+      - minio-data:/data
+    command: server /data --console-address ":9001"
+
+volumes:
+  minio-data:

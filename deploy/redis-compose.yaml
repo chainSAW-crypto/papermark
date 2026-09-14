@@ -1,0 +1,36 @@
+# Deploy as a "Docker Compose" resource in Coolify (separate from the main
+# Papermark app). Gives Papermark's @upstash/redis REST client something to
+# talk to, backed by a real self-hosted Redis instance.
+#
+# After deploy, set in the app's env:
+#   UPSTASH_REDIS_REST_URL=http://<srh-service-fqdn-or-internal-name>:80
+#   UPSTASH_REDIS_REST_TOKEN=<same value as SRH_TOKEN below>
+#   UPSTASH_REDIS_REST_LOCKER_URL=<same URL, can reuse>
+#   UPSTASH_REDIS_REST_LOCKER_TOKEN=<same token>
+#
+# Change SRH_TOKEN to a real secret before deploying — this is the bearer
+# token any client (including the app) must present to talk to Redis over
+# the REST proxy.
+
+services:
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    volumes:
+      - redis-data:/data
+    command: ["redis-server", "--appendonly", "yes"]
+
+  srh:
+    image: hiett/serverless-redis-http:latest
+    restart: unless-stopped
+    ports:
+      - "80"
+    environment:
+      SRH_MODE: env
+      SRH_TOKEN: change-me-to-a-long-random-secret
+      SRH_CONNECTION_STRING: "redis://redis:6379"
+    depends_on:
+      - redis
+
+volumes:
+  redis-data:
