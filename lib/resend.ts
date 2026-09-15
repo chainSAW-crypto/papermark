@@ -44,7 +44,11 @@ export const sendEmail = async ({
   const html = await render(react);
   const plainText = toPlainText(html);
 
+  // Self-hosted deployments can't send from the hardcoded papermark.io
+  // addresses below, so EMAIL_FROM_ADDRESS overrides every sender when set
+  // (including per-call `from` values, which are also hardcoded upstream).
   const fromAddress =
+    process.env.EMAIL_FROM_ADDRESS ??
     from ??
     (marketing
       ? "Marc from Papermark <marc@ship.papermark.io>"
