@@ -1,9 +1,12 @@
+import { timingSafeEqual } from "crypto";
+
 import { NextApiRequest, NextApiResponse } from "next";
 
 import { checkRateLimit, rateLimiters } from "@/ee/features/security";
 import { PrismaAdapter } from "@next-auth/prisma-adapter";
 import PasskeyProvider from "@teamhanko/passkeys-next-auth-provider";
 import NextAuth, { type NextAuthOptions } from "next-auth";
+import CredentialsProvider from "next-auth/providers/credentials";
 import EmailProvider from "next-auth/providers/email";
 import GoogleProvider from "next-auth/providers/google";
 import LinkedInProvider from "next-auth/providers/linkedin";
@@ -23,6 +26,26 @@ import { getIpAddress } from "@/lib/utils/ip";
 
 const VERCEL_DEPLOYMENT = !!process.env.VERCEL_URL;
 
+// Self-hosted instances often have no working email provider and no OAuth
+// app, leaving every login method unusable. SELFHOST_AUTH_USERS enables a
+// password login for a fixed set of accounts, formatted as:
+//   "alice@example.com:password1,bob@example.com:password2"
+// Unset, the provider is not registered at all and nothing changes.
+function getSelfHostUsers(): Record<string, string> {
+  const raw = process.env.SELFHOST_AUTH_USERS;
+  if (!raw) return {};
+
+  const users: Record<string, string> = {};
+  for (const entry of raw.split(",")) {
+    const separator = entry.indexOf(":");
+    if (separator === -1) continue;
+    const email = entry.slice(0, separator).trim().toLowerCase();
+    const password = entry.slice(separator + 1);
+    if (email && password) users[email] = password;
+  }
+  return users;
+}
+
 function getMainDomainUrl(): string {
   if (process.env.NODE_ENV === "development") {
     return process.env.NEXTAUTH_URL || "http://localhost:3000";
@@ -40,6 +63,38 @@ export const authOptions: NextAuthOptions = {
     error: "/login",
   },
   providers: [
+    ...(process.env.SELFHOST_AUTH_USERS
+      ? [
+          CredentialsProvider({
+            name: "Email and Password",
+            credentials: {
+              email: { label: "Email", type: "email" },
+              password: { label: "Password", type: "password" },
+            },
+            async authorize(credentials) {
+              if (!credentials?.email || !credentials?.password) return null;
+
+              const email = credentials.email.trim().toLowerCase();
+              const expected = getSelfHostUsers()[email];
+              if (!expected) return null;
+
+              const given = Buffer.from(credentials.password);
+              const actual = Buffer.from(expected);
+              if (given.length !== actual.length) return null;
+              if (!timingSafeEqual(given, actual)) return null;
+
+              // The Prisma adapter only creates users for its own flows, so
+              // the record has to be created here or every downstream
+              // relation (team, document, view) has no user to hang off.
+              return prisma.user.upsert({
+                where: { email },
+                update: {},
+                create: { email, name: email.split("@")[0] },
+              });
+            },
+          }),
+        ]
+      : []),
     GoogleProvider({
       clientId: process.env.GOOGLE_CLIENT_ID as string,
       clientSecret: process.env.GOOGLE_CLIENT_SECRET as string,
