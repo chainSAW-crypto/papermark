@@ -62,8 +62,14 @@ COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
 # Prisma CLI + schema + migrations for `prisma migrate deploy` at boot.
 # The standalone output only bundles the generated @prisma/client runtime,
 # not the `prisma` CLI itself, so pull it (and its deps) in separately.
+# NOTE: we deliberately do NOT copy node_modules/.bin/prisma — Docker's
+# COPY dereferences symlinks, so that would copy the CLI bundle's file
+# contents into .bin/ instead of preserving the symlink into
+# node_modules/prisma/build/. The bundle resolves its .wasm engine file
+# relative to its own real location, so from .bin/ it can't find it
+# (ENOENT on prisma_schema_build_bg.wasm). The entrypoint invokes
+# node_modules/prisma/build/index.js directly instead, sidestepping this.
 COPY --from=builder /app/node_modules/prisma ./node_modules/prisma
-COPY --from=builder /app/node_modules/.bin/prisma ./node_modules/.bin/prisma
 COPY --from=builder /app/node_modules/@prisma ./node_modules/@prisma
 COPY --from=builder /app/prisma ./prisma
 COPY --from=builder /app/package.json ./package.json
