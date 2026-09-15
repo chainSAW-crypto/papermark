@@ -20,6 +20,13 @@ function isAnalyticsPath(path: string) {
 }
 
 function isCustomDomain(host: string) {
+  // Self-hosted deployments serve the app from an arbitrary domain
+  // (e.g. a sslip.io host or a private domain), which otherwise falls
+  // through every hardcoded papermark.io/.com/.vercel.app check below
+  // and gets misclassified as a customer's white-labeled share-link
+  // domain. Excluding the deployment's own configured host fixes that.
+  const appHost = process.env.NEXT_PUBLIC_APP_BASE_HOST;
+
   return (
     (process.env.NODE_ENV === "development" &&
       (host?.includes(".local") || host?.includes("papermark.dev"))) ||
@@ -28,7 +35,8 @@ function isCustomDomain(host: string) {
         host?.includes("localhost") ||
         host?.includes("papermark.io") ||
         host?.includes("papermark.com") ||
-        host?.endsWith(".vercel.app")
+        host?.endsWith(".vercel.app") ||
+        (appHost && host?.includes(appHost))
       ))
   );
 }
