@@ -26,6 +26,17 @@ import { getIpAddress } from "@/lib/utils/ip";
 
 const VERCEL_DEPLOYMENT = !!process.env.VERCEL_URL;
 
+// next-auth's getToken() (used by AppMiddleware) picks the cookie name from
+// whether NEXTAUTH_URL is https, while the cookie below was named off
+// VERCEL_DEPLOYMENT alone. A self-hosted HTTPS deploy therefore wrote
+// "next-auth.session-token" but had middleware read "__Secure-next-auth.
+// session-token", so every authenticated request looked logged out and
+// bounced back to /login. Keying both off the same condition fixes that;
+// VERCEL_DEPLOYMENT stays in the expression so Vercel is unaffected even
+// when it does not set NEXTAUTH_URL.
+const USE_SECURE_COOKIES =
+  VERCEL_DEPLOYMENT || !!process.env.NEXTAUTH_URL?.startsWith("https://");
+
 // Self-hosted instances often have no working email provider and no OAuth
 // app, leaving every login method unusable. SELFHOST_AUTH_USERS enables a
 // password login for a fixed set of accounts, formatted as:
@@ -171,14 +182,14 @@ export const authOptions: NextAuthOptions = {
   session: { strategy: "jwt" },
   cookies: {
     sessionToken: {
-      name: `${VERCEL_DEPLOYMENT ? "__Secure-" : ""}next-auth.session-token`,
+      name: `${USE_SECURE_COOKIES ? "__Secure-" : ""}next-auth.session-token`,
       options: {
         httpOnly: true,
         sameSite: "lax",
         path: "/",
         // When working on localhost, the cookie domain must be omitted entirely (https://stackoverflow.com/a/1188145)
         domain: VERCEL_DEPLOYMENT ? ".papermark.com" : undefined,
-        secure: VERCEL_DEPLOYMENT,
+        secure: USE_SECURE_COOKIES,
       },
     },
   },
