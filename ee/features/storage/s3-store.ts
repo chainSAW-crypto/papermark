@@ -29,6 +29,12 @@ export class MultiRegionS3Store extends S3Store {
     const superS3Config: any = {
       bucket: euConfig.bucket,
       region: euConfig.region,
+      // Without these, tus uploads ignore a self-hosted S3-compatible
+      // endpoint entirely and address real AWS instead. forcePathStyle is
+      // required because MinIO serves endpoint/bucket/key, not bucket.endpoint.
+      ...(euConfig.endpoint
+        ? { endpoint: euConfig.endpoint, forcePathStyle: true }
+        : {}),
       credentials: {
         accessKeyId: euConfig.accessKeyId,
         secretAccessKey: euConfig.secretAccessKey,
@@ -47,6 +53,9 @@ export class MultiRegionS3Store extends S3Store {
     const euS3Config: any = {
       bucket: euConfig.bucket,
       region: euConfig.region,
+      ...(euConfig.endpoint
+        ? { endpoint: euConfig.endpoint, forcePathStyle: true }
+        : {}),
       credentials: {
         accessKeyId: euConfig.accessKeyId,
         secretAccessKey: euConfig.secretAccessKey,
@@ -63,6 +72,9 @@ export class MultiRegionS3Store extends S3Store {
       const usS3Config: any = {
         bucket: this.usConfig.bucket,
         region: this.usConfig.region,
+        ...(this.usConfig.endpoint
+          ? { endpoint: this.usConfig.endpoint, forcePathStyle: true }
+          : {}),
         credentials: {
           accessKeyId: this.usConfig.accessKeyId,
           secretAccessKey: this.usConfig.secretAccessKey,
