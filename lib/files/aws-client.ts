@@ -11,6 +11,11 @@ import { S3Client } from "@aws-sdk/client-s3";
 // while the SDK defaults to virtual-hosted-style (bucket.endpoint/key), which
 // would require wildcard DNS and a wildcard cert per bucket. Real AWS keeps the
 // default, since config.endpoint is undefined there.
+//
+// Checksums are likewise limited to WHEN_REQUIRED for custom endpoints. Since
+// SDK 3.729 the default bakes x-amz-checksum-crc32 into presigned PUT URLs,
+// computed over the empty body available at signing time (AAAAAA==), so the
+// browser's real upload no longer matches and S3-compatible backends reject it.
 export const getS3Client = (storageRegion?: string) => {
   const NEXT_PUBLIC_UPLOAD_TRANSPORT = process.env.NEXT_PUBLIC_UPLOAD_TRANSPORT;
 
@@ -23,6 +28,10 @@ export const getS3Client = (storageRegion?: string) => {
   return new S3Client({
     endpoint: config.endpoint || undefined,
     forcePathStyle: !!config.endpoint,
+    ...(config.endpoint && {
+      requestChecksumCalculation: "WHEN_REQUIRED" as const,
+      responseChecksumValidation: "WHEN_REQUIRED" as const,
+    }),
     region: config.region,
     credentials: {
       accessKeyId: config.accessKeyId,
@@ -43,6 +52,10 @@ export const getS3ClientForTeam = async (teamId: string) => {
   return new S3Client({
     endpoint: config.endpoint || undefined,
     forcePathStyle: !!config.endpoint,
+    ...(config.endpoint && {
+      requestChecksumCalculation: "WHEN_REQUIRED" as const,
+      responseChecksumValidation: "WHEN_REQUIRED" as const,
+    }),
     region: config.region,
     credentials: {
       accessKeyId: config.accessKeyId,
@@ -106,6 +119,10 @@ export const getTeamS3ClientAndConfig = async (teamId: string) => {
   const client = new S3Client({
     endpoint: config.endpoint || undefined,
     forcePathStyle: !!config.endpoint,
+    ...(config.endpoint && {
+      requestChecksumCalculation: "WHEN_REQUIRED" as const,
+      responseChecksumValidation: "WHEN_REQUIRED" as const,
+    }),
     region: config.region,
     credentials: {
       accessKeyId: config.accessKeyId,
