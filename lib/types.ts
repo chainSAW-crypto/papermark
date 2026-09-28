@@ -82,6 +82,8 @@ export interface LinkWithDocument extends Link {
     team: {
       plan: string;
     } | null;
+    // ids for /api/links/:id/access-image (storage keys are not sent to visitors)
+    accessImageIds?: string[];
   };
   feedback: {
     id: string;

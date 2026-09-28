@@ -8,6 +8,7 @@ import { getVisitorEmailError } from "@/lib/utils/validate-email";
 
 import { Button } from "@/components/ui/button";
 
+import AccessPageIntro from "./access-page-intro";
 import AgreementSection from "./agreement-section";
 import CustomFieldsSection from "./custom-fields-section";
 import EmailSection from "./email-section";
@@ -47,6 +48,8 @@ export default function AccessForm({
   customFields,
   logoOnAccessForm,
   linkWelcomeMessage,
+  accessDescription,
+  accessImageUrls = [],
 }: {
   data: DEFAULT_ACCESS_FORM_TYPE;
   email: string | null | undefined;
@@ -67,6 +70,8 @@ export default function AccessForm({
   customFields?: Partial<CustomField>[];
   logoOnAccessForm?: boolean;
   linkWelcomeMessage?: string | null;
+  accessDescription?: string | null;
+  accessImageUrls?: string[];
 }) {
   useEffect(() => {
     const userEmail = email;
@@ -152,6 +157,12 @@ export default function AccessForm({
               "Your action is requested to continue"}
           </h1>
         </div>
+
+        <AccessPageIntro
+          description={accessDescription}
+          imageUrls={accessImageUrls}
+          textColor={determineTextColor(brand?.accentColor)}
+        />
 
         <div className="mt-10 sm:mx-auto sm:w-full sm:max-w-md">
           <form className="space-y-4" onSubmit={onSubmitHandler} translate="no">

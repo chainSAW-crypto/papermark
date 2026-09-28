@@ -17,6 +17,12 @@ import {
   createDocument,
   createNewDocumentVersion,
 } from "@/lib/documents/create-document";
+import {
+  AccessPageDraft,
+  EMPTY_ACCESS_PAGE,
+  isAccessPageEmpty,
+  saveAccessPage,
+} from "@/lib/documents/save-access-page";
 import { putFile } from "@/lib/files/put-file";
 import { useDataroomPermissions } from "@/lib/hooks/use-dataroom-permissions";
 import { getNotionPageIdFromSlug } from "@/lib/notion/utils";
@@ -27,6 +33,7 @@ import { getSupportedContentType } from "@/lib/utils/get-content-type";
 
 import { SetUnifiedPermissionsModal } from "@/components/datarooms/groups/set-unified-permissions-modal";
 import DocumentUpload from "@/components/document-upload";
+import { AccessPageFields } from "@/components/documents/access-page-fields";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -74,6 +81,9 @@ export function AddDocumentModal({
   const [isOpen, setIsOpen] = useState<boolean | undefined>(undefined);
   const [currentFile, setCurrentFile] = useState<File | null>(null);
   const [notionLink, setNotionLink] = useState<string | null>(null);
+  const [showAccessPage, setShowAccessPage] = useState<boolean>(false);
+  const [accessPage, setAccessPage] =
+    useState<AccessPageDraft>(EMPTY_ACCESS_PAGE);
   const [showGroupPermissions, setShowGroupPermissions] = useState(false);
   const [uploadedFiles, setUploadedFiles] = useState<
     {
@@ -280,6 +290,22 @@ export function AddDocumentModal({
 
       if (response) {
         const document = await response.json();
+
+        // Note and images for the access screen, if any were added
+        if (!newVersion && !isAccessPageEmpty(accessPage)) {
+          try {
+            await saveAccessPage({
+              teamId,
+              documentId: document.id,
+              draft: accessPage,
+            });
+          } catch (error) {
+            console.error("Failed to save access page:", error);
+            toast.error(
+              "Document uploaded, but the note and images could not be saved. You can add them from the document page.",
+            );
+          }
+        }
 
         if (isDataroom && dataroomId) {
           const dataroomResponse = await addDocumentToDataroom({
@@ -527,6 +553,8 @@ export function AddDocumentModal({
   const clearModelStates = () => {
     currentFile !== null && setCurrentFile(null);
     notionLink !== null && setNotionLink(null);
+    setShowAccessPage(false);
+    setAccessPage(EMPTY_ACCESS_PAGE);
     setIsOpen(!isOpen);
     setAddDocumentModalOpen && setAddDocumentModalOpen(!isOpen);
   };
@@ -618,6 +646,26 @@ export function AddDocumentModal({
                         />
                       </div>
                     </div>
+
+                    {!newVersion ? (
+                      showAccessPage ? (
+                        <div className="rounded-md border p-3">
+                          <AccessPageFields
+                            value={accessPage}
+                            onChange={setAccessPage}
+                            disabled={uploading}
+                          />
+                        </div>
+                      ) : (
+                        <button
+                          type="button"
+                          className="text-left text-sm font-medium text-foreground underline-offset-4 hover:underline"
+                          onClick={() => setShowAccessPage(true)}
+                        >
+                          + Add a note and images for viewers (optional)
+                        </button>
+                      )
+                    ) : null}
 
                     {!newVersion ? (
                       <div className="flex justify-center">

@@ -11,6 +11,7 @@ import { useAnalytics } from "@/lib/analytics";
 import { SUPPORTED_DOCUMENT_SIMPLE_TYPES } from "@/lib/constants";
 import { useDisablePrint } from "@/lib/hooks/use-disable-print";
 import { LinkWithDataroomDocument, NotionTheme } from "@/lib/types";
+import { rememberEmail } from "@/lib/utils/remembered-email";
 
 import LoadingSpinner from "@/components/ui/loading-spinner";
 import AccessForm, {
@@ -225,6 +226,8 @@ export default function DataroomDocumentView({
           conversationsEnabled,
           isTeamMember,
         }));
+        // remember the address so other links can prefill it
+        rememberEmail(data.email);
         setSubmitted(true);
         setVerificationRequested(false);
         setIsLoading(false);
