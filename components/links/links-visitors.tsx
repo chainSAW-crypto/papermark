@@ -13,7 +13,7 @@ export default function LinksVisitors({
   linkId: string;
   linkName: string;
 }) {
-  const { views } = useLinkVisits(linkId);
+  const { views, error } = useLinkVisits(linkId);
 
   return (
     <>
@@ -62,6 +62,14 @@ export default function LinksVisitors({
             <TableCell className="hidden sm:table-cell"></TableCell>
           </TableRow>
         ))
+      ) : error ? (
+        <TableRow>
+          <TableCell colSpan={5}>
+            <p className="text-sm text-muted-foreground">
+              Couldn&apos;t load visits for this link.
+            </p>
+          </TableCell>
+        </TableRow>
       ) : (
         <TableRow>
           <TableCell colSpan={2}>

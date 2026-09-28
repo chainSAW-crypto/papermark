@@ -4,6 +4,11 @@ import { getServerSession } from "next-auth";
 
 import { errorhandler } from "@/lib/errorHandler";
 import prisma from "@/lib/prisma";
+import {
+  SELFHOST_PLAN,
+  selfHostTeamDefaults,
+  syncSelfHostPlan,
+} from "@/lib/selfhost/unlock";
 import { CustomUser } from "@/lib/types";
 import { log } from "@/lib/utils";
 
@@ -48,6 +53,12 @@ export default async function handle(
 
       const teams = userTeams.map((userTeam) => userTeam.team);
 
+      // SELFHOST_UNLOCK_ALL: move teams created before the switch to the top plan
+      const upgraded = await syncSelfHostPlan(teams);
+      teams.forEach((team) => {
+        if (upgraded.includes(team.id)) team.plan = SELFHOST_PLAN;
+      });
+
       // if no teams then create a default one
       if (teams.length === 0) {
         const defaultTeamName = user.name
@@ -56,6 +67,7 @@ export default async function handle(
         const defaultTeam = await prisma.team.create({
           data: {
             name: defaultTeamName,
+            ...selfHostTeamDefaults(),
             users: {
               create: {
                 userId: user.id,
@@ -98,6 +110,7 @@ export default async function handle(
       const newTeam = await prisma.team.create({
         data: {
           name: team,
+          ...selfHostTeamDefaults(),
           users: {
             create: {
               userId: user.id,

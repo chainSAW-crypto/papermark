@@ -10,6 +10,10 @@ import { errorhandler } from "@/lib/errorHandler";
 import prisma from "@/lib/prisma";
 import { getViewPageDuration } from "@/lib/tinybird";
 import { getVideoEventsByDocument } from "@/lib/tinybird/pipes";
+import {
+  getVideoCompletionRate,
+  getVideoWatchTime,
+} from "@/lib/tracking/video-watch-time";
 import { CustomUser } from "@/lib/types";
 import { log } from "@/lib/utils";
 
@@ -58,45 +62,10 @@ async function getVideoViews(
   videoEvents: { data: VideoEvent[] },
 ) {
   const durationsPromises = views.map((view) => {
-    const viewEvents =
-      videoEvents?.data.filter(
-        (event) =>
-          event.view_id === view.id &&
-          ["played", "muted", "unmuted", "rate_changed"].includes(
-            event.event_type,
-          ) &&
-          event.end_time > event.start_time &&
-          event.end_time - event.start_time >= 1,
-      ) || [];
-
-    // Track timestamps and their frequency for total watch time
-    const timestampCounts = new Map<number, number>();
-    // Track unique timestamps for completion calculation
-    const uniqueTimestamps = new Set<number>();
-
-    // Calculate total watch time
-    // let totalWatchTime = 0;
-    viewEvents.forEach((event) => {
-      for (let t = event.start_time; t < event.end_time; t++) {
-        const timestamp = Math.floor(t);
-        // Count total occurrences including replays
-        timestampCounts.set(
-          timestamp,
-          (timestampCounts.get(timestamp) || 0) + 1,
-        );
-        // Track unique timestamps
-        uniqueTimestamps.add(timestamp);
-      }
-    });
-
-    // Sum up all timestamps including duplicates for total watch time
-    let totalWatchTime = 0;
-    timestampCounts.forEach((count) => {
-      totalWatchTime += count;
-    });
-
-    // Get the number of unique timestamps watched
-    const uniqueWatchTime = uniqueTimestamps.size;
+    const { totalWatchTime, uniqueWatchTime } = getVideoWatchTime(
+      videoEvents?.data || [],
+      view.id,
+    );
 
     return {
       data: [],
@@ -114,10 +83,10 @@ async function getVideoViews(
     );
 
     const duration = durations[index];
-    const completionRate =
-      duration.videoLength > 0
-        ? Math.min(100, (duration.uniqueWatchTime / duration.videoLength) * 100)
-        : 0;
+    const completionRate = getVideoCompletionRate(
+      duration.uniqueWatchTime,
+      duration.videoLength,
+    );
 
     return {
       ...view,
@@ -178,16 +147,17 @@ export default async function handle(
     }
 
     const { teamId, id: docId } = req.query as { teamId: string; id: string };
-    
+
     // Parse and validate pagination parameters
     const rawPage = Number.parseInt((req.query.page as string) || "1", 10);
     const rawLimit = Number.parseInt((req.query.limit as string) || "10", 10);
 
     // Apply defaults for invalid values and enforce constraints
     const page = Number.isNaN(rawPage) || rawPage < 1 ? 1 : rawPage;
-    const limit = Number.isNaN(rawLimit) || rawLimit < 1 
-      ? 10 
-      : Math.min(Math.max(rawLimit, 1), 100); // Min 1, Max 100
+    const limit =
+      Number.isNaN(rawLimit) || rawLimit < 1
+        ? 10
+        : Math.min(Math.max(rawLimit, 1), 100); // Min 1, Max 100
     const offset = (page - 1) * limit;
 
     const userId = (session.user as CustomUser).id;

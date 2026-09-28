@@ -1,0 +1,125 @@
+// Self-hosted analytics event store.
+//
+// These tables mirror the Tinybird datasources in lib/tinybird/datasources and
+// are used by lib/tinybird/postgres.ts whenever TINYBIRD_TOKEN is not set.
+// They are append-only event logs, so (like Tinybird) they intentionally carry
+// no foreign keys to View/Document/Link.
+
+// Mirrors page_views__v3: time spent on a single page of a document view
+model AnalyticsPageView {
+  id            String   @id
+  linkId        String
+  documentId    String
+  viewId        String
+  dataroomId    String?
+  versionNumber Int      @default(1)
+  pageNumber    String
+  duration      Int // milliseconds
+  time          DateTime @default(now())
+
+  country        String @default("Unknown")
+  city           String @default("Unknown")
+  region         String @default("Unknown")
+  ua             String @default("Unknown")
+  browser        String @default("Unknown")
+  browserVersion String @default("Unknown")
+  os             String @default("Unknown")
+  osVersion      String @default("Unknown")
+  device         String @default("Desktop")
+  referer        String @default("(direct)")
+  refererUrl     String @default("(direct)")
+
+  @@index([documentId, viewId])
+  @@index([viewId])
+  @@index([linkId])
+  @@index([dataroomId])
+}
+
+// Mirrors video_views__v1: playback events emitted by lib/tracking/video-tracking.ts
+model AnalyticsVideoEvent {
+  id            String   @id
+  timestamp     DateTime
+  linkId        String
+  documentId    String
+  viewId        String
+  dataroomId    String?
+  versionNumber Int      @default(1)
+  eventType     String
+  startTime     Int // seconds
+  endTime       Int // seconds
+  playbackRate  Int // x100, e.g. 150 = 1.5x
+  volume        Int // 0-100
+  isMuted       Int      @default(0)
+  isFocused     Int      @default(0)
+  isFullscreen  Int      @default(0)
+
+  country    String  @default("Unknown")
+  city       String  @default("Unknown")
+  browser    String  @default("Unknown")
+  os         String  @default("Unknown")
+  device     String  @default("Desktop")
+  referer    String  @default("(direct)")
+  refererUrl String  @default("(direct)")
+  ipAddress  String?
+
+  @@index([documentId, timestamp])
+  @@index([viewId])
+}
+
+// Mirrors click_events__v1: clicks on links inside a document
+model AnalyticsClickEvent {
+  id            String   @id
+  timestamp     DateTime
+  sessionId     String
+  linkId        String
+  documentId    String
+  viewId        String
+  dataroomId    String?
+  pageNumber    String
+  versionNumber Int      @default(1)
+  href          String
+
+  @@index([documentId, viewId])
+}
+
+// Mirrors pm_click_events__v1: one row per visitor opening a link
+model AnalyticsLinkView {
+  id             String   @id // click id
+  timestamp      DateTime
+  viewId         String
+  linkId         String
+  documentId     String?
+  dataroomId     String?
+  continent      String   @default("Unknown")
+  country        String   @default("Unknown")
+  region         String   @default("Unknown")
+  city           String   @default("Unknown")
+  device         String   @default("Desktop")
+  browser        String   @default("Unknown")
+  browserVersion String   @default("Unknown")
+  os             String   @default("Unknown")
+  osVersion      String   @default("Unknown")
+  ua             String   @default("Unknown")
+  referer        String   @default("(direct)")
+  refererUrl     String   @default("(direct)")
+  ipAddress      String?
+
+  @@index([viewId])
+  @@index([linkId])
+}
+
+// Mirrors webhook_events__v1: outgoing webhook delivery log
+model AnalyticsWebhookEvent {
+  id           String   @id @default(cuid())
+  timestamp    DateTime @default(now())
+  eventId      String
+  webhookId    String
+  messageId    String
+  event        String
+  url          String
+  httpStatus   Int
+  requestBody  String
+  responseBody String
+
+  @@index([webhookId, timestamp(sort: Desc)])
+}

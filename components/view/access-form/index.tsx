@@ -1,9 +1,10 @@
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 
 import { Brand, CustomField, DataroomBrand } from "@prisma/client";
 import { ArrowUpRightIcon } from "lucide-react";
 
 import { determineTextColor } from "@/lib/utils/determine-text-color";
+import { getVisitorEmailError } from "@/lib/utils/validate-email";
 
 import { Button } from "@/components/ui/button";
 
@@ -67,8 +68,6 @@ export default function AccessForm({
   logoOnAccessForm?: boolean;
   linkWelcomeMessage?: string | null;
 }) {
-  const [isEmailValid, setIsEmailValid] = useState(true);
-
   useEffect(() => {
     const userEmail = email;
     if (userEmail) {
@@ -81,7 +80,7 @@ export default function AccessForm({
 
   const isFormValid = () => {
     if (requireEmail) {
-      if (!data.email || !isEmailValid) return false;
+      if (getVisitorEmailError(data.email)) return false;
     }
     if (requirePassword && !data.password) return false;
     if (requireAgreement && !data.hasConfirmedAgreement) return false;
@@ -164,7 +163,6 @@ export default function AccessForm({
                 {...{ data, setData, brand }}
                 disableEditEmail={disableEditEmail}
                 useCustomAccessForm={useCustomAccessForm}
-                onValidationChange={setIsEmailValid}
               />
             ) : null}
             {requirePassword ? (

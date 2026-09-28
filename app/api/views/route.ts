@@ -25,7 +25,7 @@ import { isEmailMatched } from "@/lib/utils/email-domain";
 import { generateOTP } from "@/lib/utils/generate-otp";
 import { LOCALHOST_IP } from "@/lib/utils/geo";
 import { checkGlobalBlockList } from "@/lib/utils/global-block-list";
-import { validateEmail } from "@/lib/utils/validate-email";
+import { getVisitorEmailError } from "@/lib/utils/validate-email";
 
 export async function POST(request: NextRequest) {
   try {
@@ -179,10 +179,11 @@ export async function POST(request: NextRequest) {
           );
         }
 
-        // validate email
-        if (!validateEmail(email)) {
+        // validate email format (and reject obvious typos like "gmail.con")
+        const emailError = getVisitorEmailError(email);
+        if (emailError) {
           return NextResponse.json(
-            { message: "Invalid email address." },
+            { message: emailError.message },
             { status: 400 },
           );
         }

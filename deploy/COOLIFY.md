@@ -1,8 +1,11 @@
 # Deploying Papermark on Coolify
 
 Scope for this deploy (agreed plan): core app + background jobs via
-Trigger.dev Cloud. **Skipped for v1**: Tinybird analytics, QStash-driven
-crons, Stripe billing, SSO/passkeys. All of those degrade gracefully —
+Trigger.dev Cloud. **Skipped for v1**: QStash-driven crons, Stripe billing,
+SSO/passkeys. Tinybird is not needed: with `TINYBIRD_TOKEN` unset, all view
+analytics (page time, video watch events, link clicks, webhook logs) are
+stored in Postgres (`prisma/schema/analytics.prisma`, served by
+`lib/tinybird/postgres.ts`). The skipped features degrade gracefully —
 nothing crashes, those features are just inactive until you wire them in
 later.
 
@@ -74,17 +77,19 @@ Create these as separate resources in your Coolify project, in this order:
 - Upload a PDF → confirm it lands in the `papermark-docs` MinIO bucket →
   confirm page thumbnails render (mupdf, runs in-process, no extra infra).
 - Create a share link → open it in an incognito window → confirm the
-  viewer loads and a page-view event is recorded (view analytics land in
-  Postgres regardless of Tinybird being configured — Tinybird only powers
-  the *aggregate charts*, not raw event capture).
+  viewer loads, flip through a few pages, then open the link's "views"
+  dropdown in the dashboard and confirm time spent / completion show up
+  (rows land in the `AnalyticsPageView` table).
 - Check Trigger.dev's dashboard for a run corresponding to any background
   task (e.g. PDF-to-image conversion) to confirm the worker connection is
   live.
 
 ## 5. Deferred for later (not part of this deploy)
 
-- **Tinybird** — page-view analytics dashboards. Needs a Tinybird account +
-  publishing the pipes in `lib/tinybird/`.
+- **Tinybird** (optional) — only if you outgrow Postgres for analytics.
+  Setting `TINYBIRD_TOKEN` switches every read/write in `lib/tinybird/` back
+  to Tinybird; you must then publish the datasources/pipes in that folder.
+  Existing Postgres analytics rows are not migrated.
 - **QStash crons** — the 4 routes under `app/api/cron/*` (dataroom digests,
   domain health checks, welcome emails, year-in-review) currently have
   nothing calling them. Either add Upstash QStash schedules pointed at

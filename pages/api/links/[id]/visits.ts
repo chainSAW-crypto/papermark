@@ -6,7 +6,11 @@ import { LIMITS } from "@/lib/constants";
 import { errorhandler } from "@/lib/errorHandler";
 import prisma from "@/lib/prisma";
 import { getDocumentWithTeamAndUser } from "@/lib/team/helper";
-import { getViewPageDuration } from "@/lib/tinybird";
+import { getVideoEventsByDocument, getViewPageDuration } from "@/lib/tinybird";
+import {
+  getVideoCompletionRate,
+  getVideoWatchTime,
+} from "@/lib/tracking/video-watch-time";
 import { CustomUser } from "@/lib/types";
 import { log } from "@/lib/utils";
 
@@ -39,12 +43,13 @@ export default async function handle(
           document: {
             select: {
               id: true,
+              type: true,
               numPages: true,
               versions: {
                 where: { isPrimary: true },
                 orderBy: { createdAt: "desc" },
                 take: 1,
-                select: { numPages: true },
+                select: { numPages: true, length: true },
               },
               team: {
                 select: {
@@ -100,6 +105,33 @@ export default async function handle(
         result?.document?.team?.plan === "free"
           ? views.slice(0, LIMITS.views)
           : views;
+
+      // Videos have no pages: report watch time and how much of the video
+      // was seen, the same way the document's visitors table does.
+      if (result.document.type === "video") {
+        const videoEvents = await getVideoEventsByDocument({
+          document_id: docId,
+        });
+        const videoLength = result.document.versions[0]?.length || 0;
+
+        return res.status(200).json(
+          limitedViews.map((view) => {
+            const { totalWatchTime, uniqueWatchTime } = getVideoWatchTime(
+              videoEvents.data,
+              view.id,
+            );
+            return {
+              ...view,
+              duration: { data: [] },
+              totalDuration: totalWatchTime * 1000, // milliseconds
+              completionRate: getVideoCompletionRate(
+                uniqueWatchTime,
+                videoLength,
+              ).toFixed(),
+            };
+          }),
+        );
+      }
 
       const durationsPromises = limitedViews.map((view) => {
         return getViewPageDuration({

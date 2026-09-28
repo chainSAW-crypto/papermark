@@ -1,11 +1,11 @@
-import { Dispatch, SetStateAction, useEffect, useRef, useState } from "react";
+import { Dispatch, SetStateAction, useEffect, useState } from "react";
 
 import { Brand, DataroomBrand } from "@prisma/client";
 import { useDebouncedCallback } from "use-debounce";
 
 import { cn } from "@/lib/utils";
 import { determineTextColor } from "@/lib/utils/determine-text-color";
-import { validateEmail } from "@/lib/utils/validate-email";
+import { getVisitorEmailError } from "@/lib/utils/validate-email";
 
 import { DEFAULT_ACCESS_FORM_TYPE } from ".";
 
@@ -15,18 +15,20 @@ export default function EmailSection({
   brand,
   disableEditEmail,
   useCustomAccessForm,
-  onValidationChange,
 }: {
   data: DEFAULT_ACCESS_FORM_TYPE;
   setData: Dispatch<SetStateAction<DEFAULT_ACCESS_FORM_TYPE>>;
   brand?: Partial<Brand> | Partial<DataroomBrand> | null;
   disableEditEmail?: boolean;
   useCustomAccessForm?: boolean;
-  onValidationChange: (isValid: boolean) => void;
 }) {
   const { email } = data;
-  const [emailError, setEmailError] = useState<string | null>(null);
-  const [isDirty, setIsDirty] = useState(false);
+  // Validity is derived synchronously from the current value; the parent form
+  // runs the same check to disable "Continue". This flag only controls when
+  // the message is shown, so visitors aren't nagged mid-typing.
+  const [showError, setShowError] = useState(false);
+  const emailError = email ? getVisitorEmailError(email) : null;
+  const visibleError = showError ? emailError : null;
 
   useEffect(() => {
     // Load email from localStorage when the component mounts
@@ -34,60 +36,45 @@ export default function EmailSection({
     if (storedEmail) {
       setData((prevData) => ({
         ...prevData,
-        email: storedEmail.toLowerCase(),
+        email: storedEmail.toLowerCase().trim(),
       }));
+      // A remembered address was typed on an earlier visit; surface problems
+      // with it right away instead of leaving "Continue" silently disabled.
+      setShowError(true);
     }
   }, [setData]);
 
+  // Reveal the error once the visitor pauses after starting the domain part
+  const debouncedReveal = useDebouncedCallback((value: string) => {
+    if (value.includes("@")) setShowError(true);
+  }, 800);
+
+  const updateEmail = (newEmail: string) => {
+    setData({ ...data, email: newEmail });
+    window.localStorage.setItem("papermark.email", newEmail);
+  };
+
   const handleInvalid = (e: React.InvalidEvent<HTMLInputElement>) => {
     e.preventDefault(); // Prevent default browser validation popup
-    setEmailError("Please enter a valid email address");
+    setShowError(true);
   };
-
-  const debouncedValidation = useDebouncedCallback(
-    (value: string) => {
-      const isValid = !value || validateEmail(value);
-      if (isDirty && value && !isValid) {
-        setEmailError("Please enter a valid email address");
-      } else {
-        setEmailError(null);
-      }
-      // Notify parent component about validation status
-      onValidationChange?.(isValid);
-    },
-    500, // 500ms delay
-  );
 
   const handleEmailChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const newEmail = e.target.value.toLowerCase();
-    setEmailError(null); // Clear error when typing
-
-    debouncedValidation(newEmail);
-
-    // Update the state
-    setData({ ...data, email: newEmail });
-    // Store in localStorage
-    window.localStorage.setItem("papermark.email", newEmail);
-
-    // Optional: Clear error if input becomes valid
-    if (e.target.validity.valid) {
-      setEmailError(null);
-    }
+    // Email addresses never contain whitespace; drop it as it's typed/pasted
+    const newEmail = e.target.value.toLowerCase().replace(/\s/g, "");
+    setShowError(false); // Hide error while typing
+    debouncedReveal(newEmail);
+    updateEmail(newEmail);
   };
 
-  const handleBlur = (e: React.FocusEvent<HTMLInputElement>) => {
-    setIsDirty(true);
-    const value = e.target.value;
-    const isValid = !value || validateEmail(value);
-    if (value && !isValid) {
-      setEmailError("Please enter a valid email address");
-    }
-    onValidationChange?.(isValid);
+  const handleBlur = () => {
+    debouncedReveal.cancel();
+    setShowError(true);
   };
 
-  const handleFocus = () => {
-    // Optionally clear error when user focuses the input to type again
-    setEmailError(null);
+  const applySuggestion = (suggestion: string) => {
+    updateEmail(suggestion);
+    setShowError(false);
   };
 
   return (
@@ -112,7 +99,7 @@ export default function EmailSection({
         translate="no"
         className={cn(
           "notranslate flex w-full rounded-md border-0 bg-black py-1.5 text-gray-500 shadow-sm ring-1 ring-inset ring-gray-600 placeholder:text-gray-400 focus:ring-2 focus:ring-inset focus:ring-gray-300 sm:text-sm sm:leading-6",
-          emailError && isDirty && "ring-red-500",
+          visibleError && "ring-red-500",
         )}
         style={{
           backgroundColor:
@@ -126,21 +113,30 @@ export default function EmailSection({
         onChange={handleEmailChange}
         onInvalid={handleInvalid}
         onBlur={handleBlur}
-        onFocus={handleFocus}
         disabled={disableEditEmail}
         data-1p-ignore
-        aria-invalid={emailError ? "true" : "false"}
-        aria-describedby={emailError ? "email-error" : undefined}
+        aria-invalid={visibleError ? "true" : "false"}
+        aria-describedby={visibleError ? "email-error" : undefined}
       />
-      {emailError && (
+      {visibleError && (
         <p
           id="email-error"
+          role="alert"
           className="mt-1 text-sm text-red-500"
           style={{
             color: determineTextColor(brand?.accentColor),
           }}
         >
-          {emailError}
+          {visibleError.message}{" "}
+          {visibleError.suggestion && !disableEditEmail ? (
+            <button
+              type="button"
+              className="font-medium underline underline-offset-2"
+              onClick={() => applySuggestion(visibleError.suggestion!)}
+            >
+              Use {visibleError.suggestion}
+            </button>
+          ) : null}
         </p>
       )}
       <p className="text-sm text-gray-500">
