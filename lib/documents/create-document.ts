@@ -51,11 +51,22 @@ export const createDocument = async ({
   );
 
   if (!response.ok) {
-    const error = await response.json();
-    throw new Error(error);
+    throw new Error(await getErrorMessage(response));
   }
 
   return response;
+};
+
+// The API answers with JSON ({ message, error }) or plain text; turn either
+// into a readable message instead of "[object Object]".
+const getErrorMessage = async (response: Response) => {
+  const text = await response.text().catch(() => "");
+  try {
+    const body = JSON.parse(text);
+    const detail = body?.error ?? body?.message;
+    if (typeof detail === "string" && detail) return detail;
+  } catch {}
+  return text || `Request failed with status ${response.status}`;
 };
 
 export const createAgreementDocument = async ({
