@@ -22,7 +22,11 @@ export default async function handle(
     );
     return res.status(200).json({ publicAccessToken });
   } catch (error) {
-    console.error("Error generating token:", error);
-    return res.status(500).json({ error: "Failed to generate token" });
+    // Trigger.dev not configured or unreachable: the client falls back to
+    // polling the document instead of live progress
+    console.error("Error generating token:", (error as Error).message);
+    return res
+      .status(503)
+      .json({ error: "Live processing progress is unavailable" });
   }
 }

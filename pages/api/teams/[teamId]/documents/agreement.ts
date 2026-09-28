@@ -2,10 +2,10 @@ import { NextApiRequest, NextApiResponse } from "next";
 
 import { getServerSession } from "next-auth/next";
 
+import { queuePdfConversion } from "@/lib/documents/queue-pdf-conversion";
 import { DocumentError, errorhandler } from "@/lib/errorHandler";
 import prisma from "@/lib/prisma";
 import { convertFilesToPdfTask } from "@/lib/trigger/convert-files";
-import { convertPdfToImageRoute } from "@/lib/trigger/pdf-to-image-route";
 import { CustomUser } from "@/lib/types";
 import { getExtension, log, serializeFileSize } from "@/lib/utils";
 import {
@@ -163,25 +163,13 @@ export default async function handle(
       }
 
       if (type === "pdf") {
-        await tryTrigger("pdf page rendering", () =>
-          convertPdfToImageRoute.trigger(
-            {
-              documentId: document.id,
-              documentVersionId: document.versions[0].id,
-              teamId,
-              // docId: fileUrl.split("/")[1],
-            },
-            {
-              idempotencyKey: `${teamId}-${document.versions[0].id}`,
-              tags: [
-                `team_${teamId}`,
-                `document_${document.id}`,
-                `version:${document.versions[0].id}`,
-              ],
-              queue: conversionQueue(team.plan),
-              concurrencyKey: teamId,
-            },
-          ),
+        await queuePdfConversion(
+          {
+            documentId: document.id,
+            documentVersionId: document.versions[0].id,
+            teamId,
+          },
+          team.plan,
         );
       }
 

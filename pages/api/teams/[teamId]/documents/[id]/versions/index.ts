@@ -3,11 +3,11 @@ import { NextApiRequest, NextApiResponse } from "next";
 import { authOptions } from "@/pages/api/auth/[...nextauth]";
 import { getServerSession } from "next-auth/next";
 
+import { queuePdfConversion } from "@/lib/documents/queue-pdf-conversion";
 import { copyFileToBucketServer } from "@/lib/files/copy-file-to-bucket-server";
 import prisma from "@/lib/prisma";
 import { convertFilesToPdfTask } from "@/lib/trigger/convert-files";
 import { processVideo } from "@/lib/trigger/optimize-video-files";
-import { convertPdfToImageRoute } from "@/lib/trigger/pdf-to-image-route";
 import { CustomUser } from "@/lib/types";
 import { log } from "@/lib/utils";
 import {
@@ -202,26 +202,14 @@ export default async function handle(
 
       // trigger document uploaded event to trigger convert-pdf-to-image job
       if (type === "pdf") {
-        await tryTrigger("pdf page rendering", () =>
-          convertPdfToImageRoute.trigger(
-            {
-              documentId: documentId,
-              documentVersionId: version.id,
-              teamId,
-              // docId: version.file.split("/")[1], // Extract doc_xxxx from teamId/doc_xxxx/filename
-              versionNumber: version.versionNumber,
-            },
-            {
-              idempotencyKey: `${teamId}-${version.id}`,
-              tags: [
-                `team_${teamId}`,
-                `document_${documentId}`,
-                `version:${version.id}`,
-              ],
-              queue: conversionQueue(team.plan),
-              concurrencyKey: teamId,
-            },
-          ),
+        await queuePdfConversion(
+          {
+            documentId: documentId,
+            documentVersionId: version.id,
+            teamId,
+            versionNumber: version.versionNumber,
+          },
+          team.plan,
         );
       }
 

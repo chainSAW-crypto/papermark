@@ -1,6 +1,7 @@
 import { parsePageId } from "notion-utils";
 
 import { DocumentData } from "@/lib/documents/create-document";
+import { queuePdfConversion } from "@/lib/documents/queue-pdf-conversion";
 import { DocumentError } from "@/lib/errorHandler";
 import { copyFileToBucketServer } from "@/lib/files/copy-file-to-bucket-server";
 import notion from "@/lib/notion";
@@ -12,7 +13,6 @@ import {
   convertKeynoteToPdfTask,
 } from "@/lib/trigger/convert-files";
 import { processVideo } from "@/lib/trigger/optimize-video-files";
-import { convertPdfToImageRoute } from "@/lib/trigger/pdf-to-image-route";
 import { getExtension } from "@/lib/utils";
 import {
   conversionQueue,
@@ -257,24 +257,13 @@ export const processDocument = async ({
 
   // skip triggering convert-pdf-to-image job for "notion" / "excel" documents
   if (type === "pdf") {
-    await tryTrigger("pdf page rendering", () =>
-      convertPdfToImageRoute.trigger(
-        {
-          documentId: document.id,
-          documentVersionId: document.versions[0].id,
-          teamId,
-        },
-        {
-          idempotencyKey: `${teamId}-${document.versions[0].id}`,
-          tags: [
-            `team_${teamId}`,
-            `document_${document.id}`,
-            `version:${document.versions[0].id}`,
-          ],
-          queue: conversionQueue(teamPlan),
-          concurrencyKey: teamId,
-        },
-      ),
+    await queuePdfConversion(
+      {
+        documentId: document.id,
+        documentVersionId: document.versions[0].id,
+        teamId,
+      },
+      teamPlan,
     );
   }
 

@@ -29,16 +29,22 @@ export default async function handle(
     try {
       // Per-user, per-document rate limit to prevent abuse
       // Default: 120 requests per minute per user per document
-      const { success, limit, remaining, reset } = await ratelimit(
-        120,
-        "1 m",
-      ).limit(`doc:${docId}:team:${teamId}:user:${userId}`);
+      // Fails open: if Redis is unreachable, serve the document rather than a 500
+      const rateLimit = await ratelimit(120, "1 m")
+        .limit(`doc:${docId}:team:${teamId}:user:${userId}`)
+        .catch((error) => {
+          console.error("Rate limiter unavailable:", error);
+          return null;
+        });
 
-      res.setHeader("X-RateLimit-Limit", limit.toString());
-      res.setHeader("X-RateLimit-Remaining", remaining.toString());
-      res.setHeader("X-RateLimit-Reset", reset.toString());
-      if (!success) {
-        return res.status(429).json({ error: "Too many requests" });
+      if (rateLimit) {
+        const { success, limit, remaining, reset } = rateLimit;
+        res.setHeader("X-RateLimit-Limit", limit.toString());
+        res.setHeader("X-RateLimit-Remaining", remaining.toString());
+        res.setHeader("X-RateLimit-Reset", reset.toString());
+        if (!success) {
+          return res.status(429).json({ error: "Too many requests" });
+        }
       }
 
       // First verify user has access to the team (lightweight query)

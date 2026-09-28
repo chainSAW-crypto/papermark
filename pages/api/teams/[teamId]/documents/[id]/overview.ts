@@ -169,10 +169,17 @@ export default async function handle(
       },
     };
 
-    // Set cache headers for faster subsequent loads
+    // Set cache headers for faster subsequent loads, except while pages are
+    // still being rendered: the page polls this until they are ready
+    const isProcessing =
+      !!primaryVersion &&
+      !primaryVersion.hasPages &&
+      ["pdf", "docs", "slides", "cad"].includes(primaryVersion.type ?? "");
     res.setHeader(
       "Cache-Control",
-      "private, max-age=60, stale-while-revalidate=300",
+      isProcessing
+        ? "no-store"
+        : "private, max-age=60, stale-while-revalidate=300",
     );
 
     return res.status(200).json(response);
