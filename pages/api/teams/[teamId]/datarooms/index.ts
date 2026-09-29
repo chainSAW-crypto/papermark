@@ -189,6 +189,9 @@ export default async function handle(
               "datarooms+drtrial",
               "business+drtrial",
               "datarooms-plus+drtrial",
+              "datarooms-premium",
+              "datarooms-premium+old",
+              "datarooms-premium+drtrial",
             ],
           },
           users: {

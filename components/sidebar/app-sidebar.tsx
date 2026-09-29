@@ -245,7 +245,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
               {userPlan.charAt(0).toUpperCase() + userPlan.slice(1)}
             </span>
           ) : null}
-          {isDataroomsPlus ? (
+          {isDataroomsPlus && !isDataroomsPremium ? (
             <span className="ml-4 rounded-full bg-background px-2.5 py-1 text-xs tracking-normal text-foreground ring-1 ring-gray-800">
               Datarooms+
             </span>

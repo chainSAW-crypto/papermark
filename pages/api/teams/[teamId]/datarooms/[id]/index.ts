@@ -129,7 +129,9 @@ export default async function handle(
       };
 
       const featureFlags = await getFeatureFlags({ teamId: team.id });
-      const isDataroomsPlus = team.plan.includes("datarooms-plus");
+      const isDataroomsPlus =
+        team.plan.includes("datarooms-plus") ||
+        team.plan.includes("datarooms-premium");
       const isTrial = team.plan.includes("drtrial");
 
       if (
