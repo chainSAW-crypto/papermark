@@ -3,18 +3,14 @@ import { NextApiRequest, NextApiResponse } from "next";
 import { authOptions } from "@/pages/api/auth/[...nextauth]";
 import { getServerSession } from "next-auth/next";
 
-import { queuePdfConversion } from "@/lib/documents/queue-pdf-conversion";
 import { copyFileToBucketServer } from "@/lib/files/copy-file-to-bucket-server";
 import prisma from "@/lib/prisma";
 import { convertFilesToPdfTask } from "@/lib/trigger/convert-files";
 import { processVideo } from "@/lib/trigger/optimize-video-files";
+import { convertPdfToImageRoute } from "@/lib/trigger/pdf-to-image-route";
 import { CustomUser } from "@/lib/types";
 import { log } from "@/lib/utils";
-import {
-  conversionQueue,
-  conversionUnavailableMessage,
-  tryTrigger,
-} from "@/lib/utils/trigger-utils";
+import { conversionQueue } from "@/lib/utils/trigger-utils";
 import { documentUploadSchema } from "@/lib/zod/url-validation";
 
 export default async function handle(
@@ -136,40 +132,23 @@ export default async function handle(
       });
 
       if (type === "docs" || type === "slides") {
-        const conversion = await tryTrigger("office conversion", () =>
-          convertFilesToPdfTask.trigger(
-            {
-              documentVersionId: version.id,
-              teamId,
-              documentId,
-            },
-            {
-              idempotencyKey: `${teamId}-${version.id}-docs`,
-              tags: [
-                `team_${teamId}`,
-                `document_${documentId}`,
-                `version:${version.id}`,
-              ],
-              queue: conversionQueue(team.plan),
-              concurrencyKey: teamId,
-            },
-          ),
+        await convertFilesToPdfTask.trigger(
+          {
+            documentVersionId: version.id,
+            teamId,
+            documentId,
+          },
+          {
+            idempotencyKey: `${teamId}-${version.id}-docs`,
+            tags: [
+              `team_${teamId}`,
+              `document_${documentId}`,
+              `version:${version.id}`,
+            ],
+            queue: conversionQueue(team.plan),
+            concurrencyKey: teamId,
+          },
         );
-        if (!conversion.queued) {
-          // an unconverted Word/PowerPoint version can never be opened: undo it
-          await prisma.documentVersion.delete({ where: { id: version.id } });
-          const previous = await prisma.documentVersion.findFirst({
-            where: { documentId },
-            orderBy: { versionNumber: "desc" },
-          });
-          if (previous) {
-            await prisma.documentVersion.update({
-              where: { id: previous.id },
-              data: { isPrimary: true },
-            });
-          }
-          throw new Error(conversionUnavailableMessage(conversion.reason));
-        }
       }
 
       if (
@@ -177,39 +156,47 @@ export default async function handle(
         contentType !== "video/mp4" &&
         contentType?.startsWith("video/")
       ) {
-        await tryTrigger("video processing", () =>
-          processVideo.trigger(
-            {
-              videoUrl: url,
-              teamId,
-              docId: url.split("/")[1], // Extract doc_xxxx from teamId/doc_xxxx/filename
-              documentVersionId: version.id,
-              fileSize: fileSize || 0,
-            },
-            {
-              idempotencyKey: `${teamId}-${version.id}`,
-              tags: [
-                `team_${teamId}`,
-                `document_${documentId}`,
-                `version:${version.id}`,
-              ],
-              queue: conversionQueue(team.plan),
-              concurrencyKey: teamId,
-            },
-          ),
+        await processVideo.trigger(
+          {
+            videoUrl: url,
+            teamId,
+            docId: url.split("/")[1], // Extract doc_xxxx from teamId/doc_xxxx/filename
+            documentVersionId: version.id,
+            fileSize: fileSize || 0,
+          },
+          {
+            idempotencyKey: `${teamId}-${version.id}`,
+            tags: [
+              `team_${teamId}`,
+              `document_${documentId}`,
+              `version:${version.id}`,
+            ],
+            queue: conversionQueue(team.plan),
+            concurrencyKey: teamId,
+          },
         );
       }
 
       // trigger document uploaded event to trigger convert-pdf-to-image job
       if (type === "pdf") {
-        await queuePdfConversion(
+        await convertPdfToImageRoute.trigger(
           {
             documentId: documentId,
             documentVersionId: version.id,
             teamId,
+            // docId: version.file.split("/")[1], // Extract doc_xxxx from teamId/doc_xxxx/filename
             versionNumber: version.versionNumber,
           },
-          team.plan,
+          {
+            idempotencyKey: `${teamId}-${version.id}`,
+            tags: [
+              `team_${teamId}`,
+              `document_${documentId}`,
+              `version:${version.id}`,
+            ],
+            queue: conversionQueue(team.plan),
+            concurrencyKey: teamId,
+          },
         );
       }
 

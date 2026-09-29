@@ -4,7 +4,6 @@ import {
   ViewerGroupAccessControls,
 } from "@prisma/client";
 
-import { getAccessImageId } from "@/lib/documents/access-page";
 import prisma from "@/lib/prisma";
 import { sortItemsByIndexAndName } from "@/lib/utils/sort-items-by-index-name";
 
@@ -375,8 +374,6 @@ export async function fetchDocumentLinkData({
           downloadOnly: true,
           teamId: true,
           ownerId: true,
-          accessDescription: true,
-          accessImages: true,
           team: {
             select: { plan: true },
           },
@@ -401,16 +398,6 @@ export async function fetchDocumentLinkData({
     throw new Error("Document not found");
   }
 
-  // This reaches the public view page: expose image ids, not storage keys
-  const { accessImages, ...document } = linkData.document;
-  const linkDataWithAccessPage = {
-    ...linkData,
-    document: {
-      ...document,
-      accessImageIds: accessImages.map(getAccessImageId),
-    },
-  };
-
   const brand = await prisma.brand.findFirst({
     where: {
       teamId: linkData.document.teamId,
@@ -423,5 +410,5 @@ export async function fetchDocumentLinkData({
     },
   });
 
-  return { linkData: linkDataWithAccessPage, brand };
+  return { linkData, brand };
 }

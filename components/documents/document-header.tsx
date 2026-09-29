@@ -14,7 +14,6 @@ import {
   DownloadIcon,
   FileDownIcon,
   FolderIcon,
-  MessageSquareTextIcon,
   MoonIcon,
   ServerIcon,
   SheetIcon,
@@ -61,7 +60,6 @@ import AdvancedSheet from "../shared/icons/advanced-sheet";
 import PortraitLandscape from "../shared/icons/portrait-landscape";
 import LoadingSpinner from "../ui/loading-spinner";
 import { ButtonTooltip } from "../ui/tooltip";
-import { AccessPageModal } from "./access-page-modal";
 import { AddDocumentModal } from "./add-document-modal";
 import { AddToDataroomModal } from "./add-document-to-dataroom-modal";
 import AlertBanner from "./alert";
@@ -96,7 +94,6 @@ export default function DocumentHeader({
   const [planModalTrigger, setPlanModalTrigger] = useState<string>("");
   const [selectedPlan, setSelectedPlan] = useState<PlanEnum>(PlanEnum.Pro);
   const [exportModalOpen, setExportModalOpen] = useState<boolean>(false);
-  const [accessPageOpen, setAccessPageOpen] = useState<boolean>(false);
   const nameRef = useRef<HTMLHeadingElement>(null);
   const enterPressedRef = useRef<boolean>(false);
   const dropdownRef = useRef<HTMLDivElement | null>(null);
@@ -731,11 +728,6 @@ export default function DocumentHeader({
                       : "Enable Advanced Mode"}
                   </DropdownMenuItem>
                 )}
-              <DropdownMenuItem onClick={() => setAccessPageOpen(true)}>
-                <MessageSquareTextIcon className="mr-2 h-4 w-4" />
-                Edit access page
-              </DropdownMenuItem>
-
               {datarooms && datarooms.length !== 0 && (
                 <DropdownMenuItem onClick={() => setAddDataRoomOpen(true)}>
                   <BetweenHorizontalStartIcon className="mr-2 h-4 w-4" />
@@ -980,15 +972,6 @@ export default function DocumentHeader({
           trigger={planModalTrigger}
           open={planModalOpen}
           setOpen={setPlanModalOpen}
-        />
-      ) : null}
-
-      {accessPageOpen ? (
-        <AccessPageModal
-          open={accessPageOpen}
-          setOpen={setAccessPageOpen}
-          teamId={teamId}
-          documentId={prismaDocument.id}
         />
       ) : null}
 

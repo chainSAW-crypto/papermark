@@ -1,8 +1,6 @@
 import { parsePageId } from "notion-utils";
 
 import { DocumentData } from "@/lib/documents/create-document";
-import { queuePdfConversion } from "@/lib/documents/queue-pdf-conversion";
-import { DocumentError } from "@/lib/errorHandler";
 import { copyFileToBucketServer } from "@/lib/files/copy-file-to-bucket-server";
 import notion from "@/lib/notion";
 import { getNotionPageIdFromSlug } from "@/lib/notion/utils";
@@ -13,29 +11,11 @@ import {
   convertKeynoteToPdfTask,
 } from "@/lib/trigger/convert-files";
 import { processVideo } from "@/lib/trigger/optimize-video-files";
+import { convertPdfToImageRoute } from "@/lib/trigger/pdf-to-image-route";
 import { getExtension } from "@/lib/utils";
-import {
-  conversionQueue,
-  conversionUnavailableMessage,
-  tryTrigger,
-} from "@/lib/utils/trigger-utils";
+import { conversionQueue } from "@/lib/utils/trigger-utils";
 import { sendDocumentCreatedWebhook } from "@/lib/webhook/triggers/document-created";
 import { sendLinkCreatedWebhook } from "@/lib/webhook/triggers/link-created";
-
-// Word/PowerPoint/Keynote/CAD files are unusable until converted to PDF. If
-// the conversion can't even be queued, remove the half-created document and
-// tell the uploader why, instead of leaving a document that never opens.
-async function requireConversion(
-  documentId: string,
-  label: string,
-  trigger: () => Promise<unknown>,
-) {
-  const result = await tryTrigger(label, trigger);
-  if (!result.queued) {
-    await prisma.document.delete({ where: { id: documentId } });
-    throw new DocumentError(conversionUnavailableMessage(result.reason));
-  }
-}
 
 type ProcessDocumentParams = {
   documentData: DocumentData;
@@ -164,66 +144,60 @@ export const processDocument = async ({
     (contentType === "application/vnd.apple.keynote" ||
       contentType === "application/x-iwork-keynote-sffkey")
   ) {
-    await requireConversion(document.id, "keynote conversion", () =>
-      convertKeynoteToPdfTask.trigger(
-        {
-          documentId: document.id,
-          documentVersionId: document.versions[0].id,
-          teamId,
-        },
-        {
-          idempotencyKey: `${teamId}-${document.versions[0].id}-keynote`,
-          tags: [
-            `team_${teamId}`,
-            `document_${document.id}`,
-            `version:${document.versions[0].id}`,
-          ],
-          queue: conversionQueue(teamPlan),
-          concurrencyKey: teamId,
-        },
-      ),
+    await convertKeynoteToPdfTask.trigger(
+      {
+        documentId: document.id,
+        documentVersionId: document.versions[0].id,
+        teamId,
+      },
+      {
+        idempotencyKey: `${teamId}-${document.versions[0].id}-keynote`,
+        tags: [
+          `team_${teamId}`,
+          `document_${document.id}`,
+          `version:${document.versions[0].id}`,
+        ],
+        queue: conversionQueue(teamPlan),
+        concurrencyKey: teamId,
+      },
     );
   } else if (type === "docs" || type === "slides") {
-    await requireConversion(document.id, "office conversion", () =>
-      convertFilesToPdfTask.trigger(
-        {
-          documentId: document.id,
-          documentVersionId: document.versions[0].id,
-          teamId,
-        },
-        {
-          idempotencyKey: `${teamId}-${document.versions[0].id}-docs`,
-          tags: [
-            `team_${teamId}`,
-            `document_${document.id}`,
-            `version:${document.versions[0].id}`,
-          ],
-          queue: conversionQueue(teamPlan),
-          concurrencyKey: teamId,
-        },
-      ),
+    await convertFilesToPdfTask.trigger(
+      {
+        documentId: document.id,
+        documentVersionId: document.versions[0].id,
+        teamId,
+      },
+      {
+        idempotencyKey: `${teamId}-${document.versions[0].id}-docs`,
+        tags: [
+          `team_${teamId}`,
+          `document_${document.id}`,
+          `version:${document.versions[0].id}`,
+        ],
+        queue: conversionQueue(teamPlan),
+        concurrencyKey: teamId,
+      },
     );
   }
 
   if (type === "cad") {
-    await requireConversion(document.id, "cad conversion", () =>
-      convertCadToPdfTask.trigger(
-        {
-          documentId: document.id,
-          documentVersionId: document.versions[0].id,
-          teamId,
-        },
-        {
-          idempotencyKey: `${teamId}-${document.versions[0].id}-cad`,
-          tags: [
-            `team_${teamId}`,
-            `document_${document.id}`,
-            `version:${document.versions[0].id}`,
-          ],
-          queue: conversionQueue(teamPlan),
-          concurrencyKey: teamId,
-        },
-      ),
+    await convertCadToPdfTask.trigger(
+      {
+        documentId: document.id,
+        documentVersionId: document.versions[0].id,
+        teamId,
+      },
+      {
+        idempotencyKey: `${teamId}-${document.versions[0].id}-cad`,
+        tags: [
+          `team_${teamId}`,
+          `document_${document.id}`,
+          `version:${document.versions[0].id}`,
+        ],
+        queue: conversionQueue(teamPlan),
+        concurrencyKey: teamId,
+      },
     );
   }
 
@@ -232,38 +206,45 @@ export const processDocument = async ({
     contentType !== "video/mp4" &&
     contentType?.startsWith("video/")
   ) {
-    await tryTrigger("video processing", () =>
-      processVideo.trigger(
-        {
-          videoUrl: key,
-          teamId,
-          docId: key.split("/")[1], // Extract doc_xxxx from teamId/doc_xxxx/filename
-          documentVersionId: document.versions[0].id,
-          fileSize: fileSize || 0,
-        },
-        {
-          idempotencyKey: `${teamId}-${document.versions[0].id}`,
-          tags: [
-            `team_${teamId}`,
-            `document_${document.id}`,
-            `version:${document.versions[0].id}`,
-          ],
-          queue: conversionQueue(teamPlan),
-          concurrencyKey: teamId,
-        },
-      ),
+    await processVideo.trigger(
+      {
+        videoUrl: key,
+        teamId,
+        docId: key.split("/")[1], // Extract doc_xxxx from teamId/doc_xxxx/filename
+        documentVersionId: document.versions[0].id,
+        fileSize: fileSize || 0,
+      },
+      {
+        idempotencyKey: `${teamId}-${document.versions[0].id}`,
+        tags: [
+          `team_${teamId}`,
+          `document_${document.id}`,
+          `version:${document.versions[0].id}`,
+        ],
+        queue: conversionQueue(teamPlan),
+        concurrencyKey: teamId,
+      },
     );
   }
 
   // skip triggering convert-pdf-to-image job for "notion" / "excel" documents
   if (type === "pdf") {
-    await queuePdfConversion(
+    await convertPdfToImageRoute.trigger(
       {
         documentId: document.id,
         documentVersionId: document.versions[0].id,
         teamId,
       },
-      teamPlan,
+      {
+        idempotencyKey: `${teamId}-${document.versions[0].id}`,
+        tags: [
+          `team_${teamId}`,
+          `document_${document.id}`,
+          `version:${document.versions[0].id}`,
+        ],
+        queue: conversionQueue(teamPlan),
+        concurrencyKey: teamId,
+      },
     );
   }
 

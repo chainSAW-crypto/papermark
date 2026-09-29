@@ -5,7 +5,6 @@ import { useDebouncedCallback } from "use-debounce";
 
 import { cn } from "@/lib/utils";
 import { determineTextColor } from "@/lib/utils/determine-text-color";
-import { getRememberedEmail } from "@/lib/utils/remembered-email";
 import { getVisitorEmailError } from "@/lib/utils/validate-email";
 
 import { DEFAULT_ACCESS_FORM_TYPE } from ".";
@@ -32,12 +31,16 @@ export default function EmailSection({
   const visibleError = showError ? emailError : null;
 
   useEffect(() => {
-    // Prefill the address this browser last used to open any link. It is
-    // saved only after access is granted (see rememberEmail), never while
-    // typing, so an abandoned half-typed address can't replace it.
-    const rememberedEmail = getRememberedEmail();
-    if (rememberedEmail) {
-      setData((prevData) => ({ ...prevData, email: rememberedEmail }));
+    // Load email from localStorage when the component mounts
+    const storedEmail = window.localStorage.getItem("papermark.email");
+    if (storedEmail) {
+      setData((prevData) => ({
+        ...prevData,
+        email: storedEmail.toLowerCase().trim(),
+      }));
+      // A remembered address was typed on an earlier visit; surface problems
+      // with it right away instead of leaving "Continue" silently disabled.
+      setShowError(true);
     }
   }, [setData]);
 
@@ -48,6 +51,7 @@ export default function EmailSection({
 
   const updateEmail = (newEmail: string) => {
     setData({ ...data, email: newEmail });
+    window.localStorage.setItem("papermark.email", newEmail);
   };
 
   const handleInvalid = (e: React.InvalidEvent<HTMLInputElement>) => {

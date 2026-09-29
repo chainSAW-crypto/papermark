@@ -2,17 +2,13 @@ import { NextApiRequest, NextApiResponse } from "next";
 
 import { getServerSession } from "next-auth/next";
 
-import { queuePdfConversion } from "@/lib/documents/queue-pdf-conversion";
-import { DocumentError, errorhandler } from "@/lib/errorHandler";
+import { errorhandler } from "@/lib/errorHandler";
 import prisma from "@/lib/prisma";
 import { convertFilesToPdfTask } from "@/lib/trigger/convert-files";
+import { convertPdfToImageRoute } from "@/lib/trigger/pdf-to-image-route";
 import { CustomUser } from "@/lib/types";
 import { getExtension, log, serializeFileSize } from "@/lib/utils";
-import {
-  conversionQueue,
-  conversionUnavailableMessage,
-  tryTrigger,
-} from "@/lib/utils/trigger-utils";
+import { conversionQueue } from "@/lib/utils/trigger-utils";
 import { documentUploadSchema } from "@/lib/zod/url-validation";
 
 import { authOptions } from "../../../auth/[...nextauth]";
@@ -135,41 +131,43 @@ export default async function handle(
       });
 
       if (type === "docs") {
-        const conversion = await tryTrigger("office conversion", () =>
-          convertFilesToPdfTask.trigger(
-            {
-              documentId: document.id,
-              documentVersionId: document.versions[0].id,
-              teamId,
-            },
-            {
-              idempotencyKey: `${teamId}-${document.versions[0].id}-docs`,
-              tags: [
-                `team_${teamId}`,
-                `document_${document.id}`,
-                `version:${document.versions[0].id}`,
-              ],
-              queue: conversionQueue(team.plan),
-              concurrencyKey: teamId,
-            },
-          ),
-        );
-        if (!conversion.queued) {
-          await prisma.document.delete({ where: { id: document.id } });
-          throw new DocumentError(
-            conversionUnavailableMessage(conversion.reason),
-          );
-        }
-      }
-
-      if (type === "pdf") {
-        await queuePdfConversion(
+        await convertFilesToPdfTask.trigger(
           {
             documentId: document.id,
             documentVersionId: document.versions[0].id,
             teamId,
           },
-          team.plan,
+          {
+            idempotencyKey: `${teamId}-${document.versions[0].id}-docs`,
+            tags: [
+              `team_${teamId}`,
+              `document_${document.id}`,
+              `version:${document.versions[0].id}`,
+            ],
+            queue: conversionQueue(team.plan),
+            concurrencyKey: teamId,
+          },
+        );
+      }
+
+      if (type === "pdf") {
+        await convertPdfToImageRoute.trigger(
+          {
+            documentId: document.id,
+            documentVersionId: document.versions[0].id,
+            teamId,
+            // docId: fileUrl.split("/")[1],
+          },
+          {
+            idempotencyKey: `${teamId}-${document.versions[0].id}`,
+            tags: [
+              `team_${teamId}`,
+              `document_${document.id}`,
+              `version:${document.versions[0].id}`,
+            ],
+            queue: conversionQueue(team.plan),
+            concurrencyKey: teamId,
+          },
         );
       }
 

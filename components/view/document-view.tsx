@@ -11,7 +11,6 @@ import { toast } from "sonner";
 import { useAnalytics } from "@/lib/analytics";
 import { useDisablePrint } from "@/lib/hooks/use-disable-print";
 import { LinkWithDocument, NotionTheme, WatermarkConfig } from "@/lib/types";
-import { rememberEmail } from "@/lib/utils/remembered-email";
 
 import LoadingSpinner from "@/components/ui/loading-spinner";
 import AccessForm, {
@@ -198,8 +197,6 @@ export default function DocumentView({
           ipAddress,
           isTeamMember,
         });
-        // remember the address so other links can prefill it
-        rememberEmail(data.email);
         setSubmitted(true);
         setVerificationRequested(false);
         setIsLoading(false);
@@ -276,10 +273,6 @@ export default function DocumentView({
         customFields={link.customFields}
         logoOnAccessForm={logoOnAccessForm}
         linkWelcomeMessage={link.welcomeMessage}
-        accessDescription={document.accessDescription}
-        accessImageUrls={(document.accessImageIds ?? []).map(
-          (imageId) => `/api/links/${link.id}/access-image?img=${imageId}`,
-        )}
       />
     );
   }
