@@ -1,10 +1,8 @@
 import { convertPdfToImageRoute } from "@/lib/trigger/pdf-to-image-route";
 import { conversionQueue, tryTrigger } from "@/lib/utils/trigger-utils";
 
-import {
-  ConvertPdfToImagePayload,
-  runPdfConversionInBackground,
-} from "./convert-pdf-to-images";
+import { ConvertPdfToImagePayload } from "./convert-pdf-to-images";
+import { requestPdfRendering } from "./pdf-render-registry";
 
 /**
  * Starts rendering a PDF version's pages: on Trigger.dev when it accepts the
@@ -27,11 +25,19 @@ export async function queuePdfConversion(
       concurrencyKey: teamId,
     }),
   );
+  if (result.queued) return;
 
-  if (!result.queued) {
-    console.log(
-      `[pdf-to-image ${documentVersionId}] rendering pages in-process instead`,
+  console.log(
+    `[pdf-to-image ${documentVersionId}] rendering pages in-process instead`,
+  );
+  try {
+    await requestPdfRendering(payload);
+  } catch (error) {
+    // Never fail the upload over this: opening the document page retries it
+    // (resumeStalledPdfRendering), and visitors get the plain PDF meanwhile
+    console.error(
+      `[pdf-to-image ${documentVersionId}]`,
+      (error as Error).message,
     );
-    runPdfConversionInBackground(payload);
   }
 }

@@ -5,6 +5,7 @@ import { authOptions } from "@/pages/api/auth/[...nextauth]";
 import { Prisma } from "@prisma/client";
 import { getServerSession } from "next-auth/next";
 
+import { resumeStalledPdfRendering } from "@/lib/documents/pdf-render-registry";
 import { getFeatureFlags } from "@/lib/featureFlags";
 import prisma from "@/lib/prisma";
 import { CustomUser } from "@/lib/types";
@@ -175,6 +176,20 @@ export default async function handle(
       !!primaryVersion &&
       !primaryVersion.hasPages &&
       ["pdf", "docs", "slides", "cad"].includes(primaryVersion.type ?? "");
+
+    // A PDF whose rendering stopped (server restart, earlier failure, or an
+    // upload from before in-server rendering existed) picks up again here
+    if (isProcessing && primaryVersion.type === "pdf") {
+      resumeStalledPdfRendering(
+        {
+          documentId: document.id,
+          documentVersionId: primaryVersion.id,
+          teamId,
+          versionNumber: primaryVersion.versionNumber,
+        },
+        primaryVersion.createdAt,
+      );
+    }
     res.setHeader(
       "Cache-Control",
       isProcessing

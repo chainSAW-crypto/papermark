@@ -19,9 +19,9 @@ type ConversionHooks = {
 
 /**
  * Renders every page of a PDF version to an image (through the app's
- * /api/mupdf endpoints) and marks the version as having pages. Runs inside
- * the Trigger.dev task, or directly in the app server when Trigger.dev is
- * unavailable (see runPdfConversionInBackground).
+ * /api/mupdf endpoints, one request per page) and marks the version as having
+ * pages. Runs inside the Trigger.dev task; without Trigger.dev the app renders
+ * pages itself via /api/mupdf/process-document.
  */
 export async function convertPdfToImages(
   payload: ConvertPdfToImagePayload,
@@ -260,23 +260,4 @@ export async function convertPdfToImages(
     message: "Successfully converted PDF to images",
     totalPages: numPages,
   };
-}
-
-/**
- * Self-hosted fallback when the Trigger.dev job can't be queued: render the
- * pages in this server process, without blocking the upload request.
- */
-export function runPdfConversionInBackground(
-  payload: ConvertPdfToImagePayload,
-) {
-  const prefix = `[pdf-to-image ${payload.documentVersionId}]`;
-  convertPdfToImages(payload, {
-    log: (level, message) =>
-      level === "error"
-        ? console.error(prefix, message)
-        : console.log(prefix, message),
-    status: () => {},
-  }).catch((error) =>
-    console.error(prefix, "conversion failed:", (error as Error).message),
-  );
 }
