@@ -7,7 +7,7 @@ import { parse } from "cookie";
 import crypto from "crypto";
 import { z } from "zod";
 
-import { redis } from "@/lib/redis";
+import prisma from "@/lib/prisma";
 
 import { LOCALHOST_IP } from "../utils/geo";
 import { getIpAddress } from "../utils/ip";
@@ -27,6 +27,34 @@ export const DataroomSessionSchema = z.object({
 
 // Generate TypeScript type from Zod schema
 export type DataroomSession = z.infer<typeof DataroomSessionSchema>;
+
+// Sessions are stored in the DataroomSession table, keyed by a hash of the
+// cookie token so a database leak doesn't hand out usable cookies.
+const hashSessionToken = (token: string) =>
+  crypto.createHash("sha256").update(token).digest("hex");
+
+async function loadSession(token: string): Promise<DataroomSession | null> {
+  const row = await prisma.dataroomSession.findUnique({
+    where: { tokenHash: hashSessionToken(token) },
+  });
+  if (!row) return null;
+
+  return {
+    dataroomId: row.dataroomId,
+    linkId: row.linkId,
+    viewId: row.viewId,
+    viewerId: row.viewerId ?? undefined,
+    expiresAt: row.expiresAt.getTime(),
+    ipAddress: row.ipAddress,
+    verified: row.verified,
+  };
+}
+
+async function deleteSession(token: string) {
+  await prisma.dataroomSession.deleteMany({
+    where: { tokenHash: hashSessionToken(token) },
+  });
+}
 
 async function createDataroomSession(
   dataroomId: string,
@@ -52,12 +80,23 @@ async function createDataroomSession(
   // Validate session data before storing
   DataroomSessionSchema.parse(sessionData);
 
-  // Store session in Redis
-  await redis.set(
-    `dataroom_session:${sessionToken}`,
-    JSON.stringify(sessionData),
-    { pxat: expiresAt },
-  );
+  await prisma.dataroomSession.create({
+    data: {
+      tokenHash: hashSessionToken(sessionToken),
+      dataroomId,
+      linkId,
+      viewId,
+      viewerId,
+      ipAddress,
+      verified,
+      expiresAt: new Date(expiresAt),
+    },
+  });
+
+  // Housekeeping: drop expired sessions (Redis used to expire them itself)
+  prisma.dataroomSession
+    .deleteMany({ where: { expiresAt: { lt: new Date() } } })
+    .catch(() => {});
 
   return {
     token: sessionToken,
@@ -75,7 +114,7 @@ async function verifyDataroomSession(
   const sessionToken = cookies().get(`pm_drs_${linkId}`)?.value;
   if (!sessionToken) return null;
 
-  const session = await redis.get(`dataroom_session:${sessionToken}`);
+  const session = await loadSession(sessionToken);
   if (!session) return null;
 
   try {
@@ -83,14 +122,14 @@ async function verifyDataroomSession(
 
     // Check if session is expired
     if (sessionData.expiresAt < Date.now()) {
-      await redis.del(`dataroom_session:${sessionToken}`);
+      await deleteSession(sessionToken);
       return null;
     }
 
     const ipAddressValue = ipAddress(request) ?? LOCALHOST_IP;
 
     if (ipAddressValue !== sessionData.ipAddress) {
-      await redis.del(`dataroom_session:${sessionToken}`);
+      await deleteSession(sessionToken);
       return null;
     }
 
@@ -99,7 +138,7 @@ async function verifyDataroomSession(
       sessionData.linkId !== linkId ||
       sessionData.dataroomId !== dataroomId
     ) {
-      await redis.del(`dataroom_session:${sessionToken}`);
+      await deleteSession(sessionToken);
       return null;
     }
 
@@ -107,7 +146,7 @@ async function verifyDataroomSession(
   } catch (error) {
     console.log("error", error);
     // If validation fails, delete invalid session and return null
-    await redis.del(`dataroom_session:${sessionToken}`);
+    await deleteSession(sessionToken);
     return null;
   }
 }
@@ -124,7 +163,7 @@ export async function verifyDataroomSessionInPagesRouter(
   const sessionToken = cookies[`pm_drs_${linkId}`];
   if (!sessionToken) return null;
 
-  const session = await redis.get(`dataroom_session:${sessionToken}`);
+  const session = await loadSession(sessionToken);
   if (!session) return null;
 
   try {
@@ -132,7 +171,7 @@ export async function verifyDataroomSessionInPagesRouter(
 
     // Check if session is expired
     if (sessionData.expiresAt < Date.now()) {
-      await redis.del(`dataroom_session:${sessionToken}`);
+      await deleteSession(sessionToken);
       return null;
     }
 
@@ -140,7 +179,7 @@ export async function verifyDataroomSessionInPagesRouter(
     const ipAddressValue = getIpAddress(req.headers) ?? LOCALHOST_IP;
 
     if (ipAddressValue !== sessionData.ipAddress) {
-      await redis.del(`dataroom_session:${sessionToken}`);
+      await deleteSession(sessionToken);
       return null;
     }
 
@@ -149,7 +188,7 @@ export async function verifyDataroomSessionInPagesRouter(
       sessionData.linkId !== linkId ||
       sessionData.dataroomId !== dataroomId
     ) {
-      await redis.del(`dataroom_session:${sessionToken}`);
+      await deleteSession(sessionToken);
       return null;
     }
 
@@ -157,7 +196,7 @@ export async function verifyDataroomSessionInPagesRouter(
   } catch (error) {
     console.log("error", error);
     // If validation fails, delete invalid session and return null
-    await redis.del(`dataroom_session:${sessionToken}`);
+    await deleteSession(sessionToken);
     return null;
   }
 }

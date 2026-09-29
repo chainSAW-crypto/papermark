@@ -200,6 +200,23 @@ model PermissionGroup {
   @@index([teamId])
 }
 
+// Visitor session for a dataroom link, referenced by the pm_drs_<linkId>
+// cookie. Kept in Postgres (like document links' VerificationToken) so that
+// dataroom access doesn't depend on Redis.
+model DataroomSession {
+  tokenHash  String   @id // sha256 of the cookie token; the raw token is never stored
+  dataroomId String
+  linkId     String
+  viewId     String
+  viewerId   String?
+  ipAddress  String
+  verified   Boolean
+  expiresAt  DateTime
+  createdAt  DateTime @default(now())
+
+  @@index([expiresAt])
+}
+
 model PermissionGroupAccessControls {
   id      String          @id @default(cuid())
   groupId String
