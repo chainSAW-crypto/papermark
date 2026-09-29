@@ -360,7 +360,9 @@ export function AddDocumentModal({
       }
     } catch (error) {
       setUploading(false);
-      toast.error("An error occurred while uploading the file.");
+      toast.error(
+        `Upload failed: ${(error as Error)?.message || "unknown error"}`,
+      );
       console.error("An error occurred while uploading the file: ", error);
     } finally {
       setUploading(false);

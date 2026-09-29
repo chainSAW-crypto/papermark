@@ -350,7 +350,10 @@ export default function UploadZone({
             );
 
             setRejectedFiles((prev) => [
-              { fileName: file.name, message: "Error uploading file" },
+              {
+                fileName: file.name,
+                message: `Error uploading file${error?.message ? `: ${error.message}` : ""}`,
+              },
               ...prev,
             ]);
           },
@@ -398,12 +401,29 @@ export default function UploadZone({
         const fileUploadPathName = file?.whereToUploadPath;
         const dataroomUploadPathName = file?.dataroomUploadPath;
 
-        const response = await createDocument({
-          documentData,
-          teamId: teamInfo?.currentTeam?.id as string,
-          numPages: uploadResult.numPages,
-          folderPathName: fileUploadPathName,
-        });
+        let response: Response;
+        try {
+          response = await createDocument({
+            documentData,
+            teamId: teamInfo?.currentTeam?.id as string,
+            numPages: uploadResult.numPages,
+            folderPathName: fileUploadPathName,
+          });
+        } catch (error) {
+          // The file reached storage but the document couldn't be created:
+          // show why instead of leaving the upload stuck at 99%
+          console.error("Failed to create document:", error);
+          setUploads((prev) =>
+            prev.filter(
+              (upload) => upload.uploadId !== newUploads[index].uploadId,
+            ),
+          );
+          setRejectedFiles((prev) => [
+            { fileName: file.name, message: (error as Error).message },
+            ...prev,
+          ]);
+          return null;
+        }
 
         // add the new document to the list
         mutate(`/api/teams/${teamInfo?.currentTeam?.id}/documents`);
@@ -500,7 +520,9 @@ export default function UploadZone({
             `/api/teams/${teamInfo?.currentTeam?.id}/${endpointTargetType}/${folderPathName}`,
           );
       });
-      const uploadedDocuments = await documents;
+      const uploadedDocuments = (await documents).filter(
+        (document): document is NonNullable<typeof document> => !!document,
+      );
       const dataroomDocuments = uploadedDocuments.map((document) => ({
         documentId: document.id,
         dataroomDocumentId: document.dataroomDocumentId,
