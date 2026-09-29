@@ -280,6 +280,22 @@ export default function LinkSheet({
 
     setIsSaving(true);
 
+    // Without this, a failed image upload or a non-JSON error response
+    // rejects silently and leaves the button spinning forever.
+    try {
+      await saveLink(shouldPreview);
+    } catch (error) {
+      console.error("Failed to save link:", error);
+      toast.error(
+        error instanceof Error && error.message
+          ? error.message
+          : "Failed to save link. Please try again.",
+      );
+      setIsSaving(false);
+    }
+  };
+
+  const saveLink = async (shouldPreview: boolean) => {
     // Upload the image if it's a data URL
     let blobUrl: string | null =
       data.metaImage && data.metaImage.startsWith("data:")

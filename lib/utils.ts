@@ -519,6 +519,24 @@ export const uploadImage = async (
   file: File,
   uploadType: "profile" | "assets" = "assets",
 ) => {
+  // Self-hosted S3/MinIO: Vercel Blob isn't configured, so store the image in
+  // the upload bucket and get back an app URL that serves it publicly.
+  if (process.env.NEXT_PUBLIC_UPLOAD_TRANSPORT === "s3") {
+    const response = await fetch(`/api/file/s3/image-upload?type=${uploadType}`, {
+      method: "POST",
+      headers: { "Content-Type": file.type },
+      body: file,
+    });
+    if (!response.ok) {
+      const { error } = await response
+        .json()
+        .catch(() => ({ error: undefined }));
+      throw new Error(error || `Image upload failed (${response.status})`);
+    }
+    const { url } = (await response.json()) as { url: string };
+    return url;
+  }
+
   const newBlob = await upload(file.name, file, {
     access: "public",
     handleUploadUrl: `/api/file/image-upload?type=${uploadType}`,

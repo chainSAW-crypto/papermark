@@ -245,6 +245,11 @@ export function DataroomLinkSheet({
       setPendingLinkData(null);
     } catch (error) {
       console.error("Error creating/updating link with permissions:", error);
+      toast.error(
+        error instanceof Error && error.message
+          ? error.message
+          : "Failed to save link. Please try again.",
+      );
       setIsSaving(false);
     }
   };
@@ -647,13 +652,25 @@ export function DataroomLinkSheet({
     // For backward compatibility, extract permissions from linkData
     setIsSaving(true);
     const permissions = linkData.permissions || null;
-    await createOrUpdateLinkWithPermissions(
-      linkData,
-      permissions,
-      shouldPreview,
-      showSuccess,
-      false,
-    );
+    // Without this, a failed image upload or a non-JSON error response
+    // rejects silently and leaves the button spinning forever.
+    try {
+      await createOrUpdateLinkWithPermissions(
+        linkData,
+        permissions,
+        shouldPreview,
+        showSuccess,
+        false,
+      );
+    } catch (error) {
+      console.error("Failed to save link:", error);
+      toast.error(
+        error instanceof Error && error.message
+          ? error.message
+          : "Failed to save link. Please try again.",
+      );
+      setIsSaving(false);
+    }
   };
 
   const handleSubmit = async (
