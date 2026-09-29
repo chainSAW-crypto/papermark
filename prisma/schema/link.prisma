@@ -64,7 +64,8 @@ model Link {
   enableCustomMetatag Boolean? @default(false) // Optional give user a option to enable the custom metatag
 
   // custom welcome message (overrides brand welcome message)
-  welcomeMessage String? // Custom welcome message for this specific link
+  welcomeMessage     String? // Custom welcome message for this specific link
+  welcomeDescription String? // Longer text shown under the welcome message on the access page
 
   // conversation
   enableConversation Boolean        @default(false) // Controls if conversations are allowed on this link

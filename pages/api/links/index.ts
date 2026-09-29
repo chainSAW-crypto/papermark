@@ -175,6 +175,7 @@ export default async function handler(
             metaImage: linkData.metaImage || null,
             metaFavicon: linkData.metaFavicon || null,
             welcomeMessage: linkData.welcomeMessage || null,
+            welcomeDescription: linkData.welcomeDescription || null,
             allowList: linkData.allowList,
             denyList: linkData.denyList,
             audienceType: linkData.audienceType,

@@ -73,6 +73,7 @@ export const DEFAULT_LINK_PROPS = (
   metaImage: null,
   metaFavicon: null,
   welcomeMessage: null,
+  welcomeDescription: null,
   enableQuestion: false,
   questionText: null,
   questionType: null,
@@ -116,6 +117,7 @@ export type DEFAULT_LINK_TYPE = {
   metaImage: string | null; // metatags
   metaFavicon: string | null; // metaFavicon
   welcomeMessage: string | null; // custom welcome message
+  welcomeDescription: string | null; // text under the welcome message
   enableQuestion?: boolean; // feedback question
   questionText: string | null;
   questionType: string | null;

@@ -59,6 +59,7 @@ export default async function handle(
           metaImage: true,
           metaFavicon: true,
           welcomeMessage: true,
+          welcomeDescription: true,
           enableQuestion: true,
           dataroomId: true,
           linkType: true,

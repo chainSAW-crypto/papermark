@@ -12,6 +12,7 @@ import { DEFAULT_LINK_TYPE } from ".";
 import LinkItem from "./link-item";
 
 const MAX_WELCOME_MESSAGE_LENGTH = 80;
+const MAX_WELCOME_DESCRIPTION_LENGTH = 500;
 
 export function WelcomeMessageSection({
   data,
@@ -20,23 +21,25 @@ export function WelcomeMessageSection({
   data: DEFAULT_LINK_TYPE;
   setData: React.Dispatch<React.SetStateAction<DEFAULT_LINK_TYPE>>;
 }) {
-  const { welcomeMessage } = data;
-  const [enabled, setEnabled] = useState<boolean>(!!welcomeMessage);
+  const { welcomeMessage, welcomeDescription } = data;
+  const [enabled, setEnabled] = useState<boolean>(
+    !!welcomeMessage || !!welcomeDescription,
+  );
   const [welcomeMessageError, setWelcomeMessageError] = useState<
     string | null
   >(null);
 
   useEffect(() => {
-    setEnabled(!!welcomeMessage);
-  }, [welcomeMessage]);
+    setEnabled(!!welcomeMessage || !!welcomeDescription);
+  }, [welcomeMessage, welcomeDescription]);
 
   const handleWelcomeMessageToggle = () => {
     const updatedEnabled = !enabled;
     setEnabled(updatedEnabled);
     
     if (!updatedEnabled) {
-      // Clear the welcome message when disabled
-      setData({ ...data, welcomeMessage: null });
+      // Clear the welcome message and description when disabled
+      setData({ ...data, welcomeMessage: null, welcomeDescription: null });
       setWelcomeMessageError(null);
     }
   };
@@ -61,7 +64,7 @@ export function WelcomeMessageSection({
     <div className="pb-5">
       <LinkItem
         title="Custom Welcome Message"
-        tooltipContent="Override the default welcome message for this link"
+        tooltipContent="Override the default welcome message for this link and add a description shown above the email field"
         enabled={enabled}
         action={handleWelcomeMessageToggle}
       />
@@ -103,6 +106,37 @@ export function WelcomeMessageSection({
             <p className="text-xs text-muted-foreground">
               This message will override the default welcome message from your
               branding settings for this specific link.
+            </p>
+          </div>
+
+          <div className="space-y-3">
+            <div className="flex items-center justify-between">
+              <Label htmlFor="welcome-description">
+                <p className="block text-sm font-medium text-foreground">
+                  Description{" "}
+                  <span className="text-sm italic text-muted-foreground">
+                    (optional)
+                  </span>
+                </p>
+              </Label>
+              <span className="text-sm text-muted-foreground">
+                {welcomeDescription?.length || 0}/
+                {MAX_WELCOME_DESCRIPTION_LENGTH}
+              </span>
+            </div>
+            <Textarea
+              id="welcome-description"
+              value={welcomeDescription || ""}
+              onChange={(e) =>
+                setData({ ...data, welcomeDescription: e.target.value || null })
+              }
+              placeholder="Tell visitors what they're about to see before they enter their email."
+              className="min-h-28 resize-y"
+              maxLength={MAX_WELCOME_DESCRIPTION_LENGTH}
+            />
+            <p className="text-xs text-muted-foreground">
+              Shown under the welcome message on the access page, above the
+              email field. Line breaks are kept.
             </p>
           </div>
         </motion.div>

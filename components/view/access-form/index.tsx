@@ -47,6 +47,7 @@ export default function AccessForm({
   customFields,
   logoOnAccessForm,
   linkWelcomeMessage,
+  linkWelcomeDescription,
 }: {
   data: DEFAULT_ACCESS_FORM_TYPE;
   email: string | null | undefined;
@@ -67,6 +68,7 @@ export default function AccessForm({
   customFields?: Partial<CustomField>[];
   logoOnAccessForm?: boolean;
   linkWelcomeMessage?: string | null;
+  linkWelcomeDescription?: string | null;
 }) {
   useEffect(() => {
     const userEmail = email;
@@ -151,6 +153,16 @@ export default function AccessForm({
               (brand && "welcomeMessage" in brand && brand.welcomeMessage) ||
               "Your action is requested to continue"}
           </h1>
+          {linkWelcomeDescription ? (
+            <p
+              className="mt-3 whitespace-pre-line break-words text-sm leading-6 opacity-80"
+              style={{
+                color: determineTextColor(brand?.accentColor),
+              }}
+            >
+              {linkWelcomeDescription}
+            </p>
+          ) : null}
         </div>
 
         <div className="mt-10 sm:mx-auto sm:w-full sm:max-w-md">
