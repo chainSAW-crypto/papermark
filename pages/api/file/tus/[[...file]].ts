@@ -54,6 +54,9 @@ const tusServer = new Server({
     return Buffer.from(id, "base64url").toString("utf-8");
   },
   onResponseError(req, res, err) {
+    // Full error (S3/Redis response details) for the server logs; the log()
+    // message below only carries err.toString().
+    console.error("tus upload error:", err);
     log({
       message: "Error uploading a file. Error: \n\n" + err,
       type: "error",
@@ -99,9 +102,12 @@ const tusServer = new Server({
   },
 });
 
-export default function handler(req: NextApiRequest, res: NextApiResponse) {
+export default async function handler(
+  req: NextApiRequest,
+  res: NextApiResponse,
+) {
   // Get the session
-  const session = getServerSession(req, res, authOptions);
+  const session = await getServerSession(req, res, authOptions);
   if (!session) {
     return res.status(401).json({ message: "Unauthorized" });
   }

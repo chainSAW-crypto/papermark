@@ -9,6 +9,24 @@ import type { Readable } from "stream";
 
 import { getFeatureFlags } from "@/lib/featureFlags";
 
+// Client options for a self-hosted S3-compatible endpoint (MinIO and friends),
+// matching getS3Client() in lib/files/aws-client.ts:
+// - forcePathStyle: MinIO serves endpoint/bucket/key, not bucket.endpoint/key.
+// - Checksums WHEN_REQUIRED: since SDK 3.729 the default adds CRC32 checksums
+//   and, for the streamed part uploads tus does, aws-chunked bodies with a
+//   trailing checksum, which S3-compatible backends and proxies in front of
+//   them reject, failing the upload with a 500.
+// Real AWS (no endpoint) keeps the SDK defaults.
+const customEndpointOptions = (endpoint?: string) =>
+  endpoint
+    ? {
+        endpoint,
+        forcePathStyle: true,
+        requestChecksumCalculation: "WHEN_REQUIRED" as const,
+        responseChecksumValidation: "WHEN_REQUIRED" as const,
+      }
+    : {};
+
 /**
  * Team-aware S3Store that routes uploads to different S3 buckets
  * based on team storage preferences. Extends S3Store and dynamically
@@ -30,11 +48,8 @@ export class MultiRegionS3Store extends S3Store {
       bucket: euConfig.bucket,
       region: euConfig.region,
       // Without these, tus uploads ignore a self-hosted S3-compatible
-      // endpoint entirely and address real AWS instead. forcePathStyle is
-      // required because MinIO serves endpoint/bucket/key, not bucket.endpoint.
-      ...(euConfig.endpoint
-        ? { endpoint: euConfig.endpoint, forcePathStyle: true }
-        : {}),
+      // endpoint entirely and address real AWS instead.
+      ...customEndpointOptions(euConfig.endpoint),
       credentials: {
         accessKeyId: euConfig.accessKeyId,
         secretAccessKey: euConfig.secretAccessKey,
@@ -53,9 +68,7 @@ export class MultiRegionS3Store extends S3Store {
     const euS3Config: any = {
       bucket: euConfig.bucket,
       region: euConfig.region,
-      ...(euConfig.endpoint
-        ? { endpoint: euConfig.endpoint, forcePathStyle: true }
-        : {}),
+      ...customEndpointOptions(euConfig.endpoint),
       credentials: {
         accessKeyId: euConfig.accessKeyId,
         secretAccessKey: euConfig.secretAccessKey,
@@ -72,9 +85,7 @@ export class MultiRegionS3Store extends S3Store {
       const usS3Config: any = {
         bucket: this.usConfig.bucket,
         region: this.usConfig.region,
-        ...(this.usConfig.endpoint
-          ? { endpoint: this.usConfig.endpoint, forcePathStyle: true }
-          : {}),
+        ...customEndpointOptions(this.usConfig.endpoint),
         credentials: {
           accessKeyId: this.usConfig.accessKeyId,
           secretAccessKey: this.usConfig.secretAccessKey,

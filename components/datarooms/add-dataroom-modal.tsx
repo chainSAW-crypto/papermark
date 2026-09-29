@@ -310,9 +310,14 @@ export function AddDataroomModal({
       });
 
       if (!response.ok) {
-        const { message } = await response.json();
+        // Some errors (e.g. 401) come back as plain text, not JSON
+        const { message } = await response
+          .json()
+          .catch(() => ({ message: undefined }));
         setLoading(false);
-        toast.error(message);
+        toast.error(
+          message || `Couldn't create the dataroom (error ${response.status})`,
+        );
         return;
       }
 
