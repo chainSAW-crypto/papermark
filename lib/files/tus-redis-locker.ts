@@ -1,5 +1,26 @@
+import { MemoryLocker } from "@tus/server";
 import { ERRORS, Lock, Locker, RequestRelease } from "@tus/utils";
 import { Redis } from "@upstash/redis";
+
+import { lockerRedisClient } from "@/lib/redis";
+
+/**
+ * Locker for the tus upload routes. Uses Redis when the locker REST
+ * credentials are configured (needed when several app instances share
+ * uploads); otherwise falls back to an in-process lock, which is all a
+ * single-instance self-hosted deployment needs. Without this fallback, a
+ * missing UPSTASH_REDIS_REST_LOCKER_URL fails every upload with
+ * "Failed to parse URL from /pipeline".
+ */
+export function createTusLocker(): Locker {
+  if (
+    process.env.UPSTASH_REDIS_REST_LOCKER_URL &&
+    process.env.UPSTASH_REDIS_REST_LOCKER_TOKEN
+  ) {
+    return new RedisLocker({ redisClient: lockerRedisClient });
+  }
+  return new MemoryLocker();
+}
 
 /**
  * RedisLocker is an implementation of the Locker interface that manages locks in key-value store using Redis.
