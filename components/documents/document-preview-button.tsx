@@ -112,8 +112,10 @@ export function isDocumentProcessing(primaryVersion?: {
 }) {
   if (!primaryVersion) return false;
 
-  // Check if document type should have pages but doesn't
-  const shouldHavePages = ["pdf", "docs", "slides", "cad"].includes(
+  // Check if document type can't be shown until it has pages. PDFs aren't
+  // included: they open in the PDF viewer without rendered pages (see
+  // isDocumentProcessing in components/links/links-table.tsx).
+  const shouldHavePages = ["docs", "slides", "cad"].includes(
     primaryVersion.type || "",
   );
 

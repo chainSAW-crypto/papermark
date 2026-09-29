@@ -26,10 +26,12 @@ export default function FileProcessStatusBar({
   onProcessingChange?: (processing: boolean) => void;
 }) {
   const [messageIndex, setMessageIndex] = useState(0);
-  const { data } = useSWRImmutable<{ publicAccessToken: string }>(
-    `/api/progress-token?documentVersionId=${documentVersionId}`,
-    fetcher,
-  );
+  // Fails when Trigger.dev isn't configured (no TRIGGER_SECRET_KEY). Then no
+  // job was queued and there's no progress to show: without this the bar
+  // would sit on "queued" forever, covering the document's links.
+  const { data, error: tokenError } = useSWRImmutable<{
+    publicAccessToken: string;
+  }>(`/api/progress-token?documentVersionId=${documentVersionId}`, fetcher);
 
   const { status: progressStatus, error: progressError } =
     useDocumentProgressStatus(documentVersionId, data?.publicAccessToken);
@@ -38,11 +40,12 @@ export default function FileProcessStatusBar({
   useEffect(() => {
     if (onProcessingChange) {
       onProcessingChange(
-        progressStatus.state === "QUEUED" ||
-          progressStatus.state === "EXECUTING",
+        !tokenError &&
+          (progressStatus.state === "QUEUED" ||
+            progressStatus.state === "EXECUTING"),
       );
     }
-  }, [progressStatus.state, onProcessingChange]);
+  }, [progressStatus.state, onProcessingChange, tokenError]);
 
   // Cycle through messages when queued or executing
   useEffect(() => {
@@ -58,6 +61,8 @@ export default function FileProcessStatusBar({
       if (interval) clearInterval(interval);
     };
   }, [progressStatus.state]);
+
+  if (tokenError) return null;
 
   if (progressStatus.state === "QUEUED" && !progressError) {
     return (

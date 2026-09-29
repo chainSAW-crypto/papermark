@@ -20,6 +20,7 @@ interface PauseResumeReminderEmailProps {
   userRole?: string;
 }
 
+
 const baseUrl =
   process.env.NEXT_PUBLIC_MARKETING_URL || "https://www.papermark.com";
 

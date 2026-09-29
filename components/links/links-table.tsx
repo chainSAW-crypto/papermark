@@ -84,11 +84,13 @@ import { TagColumn } from "./link-sheet/tags/tag-details";
 import LinksVisitors from "./links-visitors";
 import { PreviewButton } from "./preview-button";
 
+// PDFs aren't included: they open in the PDF viewer without rendered pages,
+// and when Trigger.dev isn't configured those pages are never rendered, which
+// would leave every PDF "processing" forever with preview disabled.
 const isDocumentProcessing = (version?: DocumentVersion) => {
   if (!version) return false;
   return (
-    !version.hasPages &&
-    ["pdf", "slides", "docs", "cad"].includes(version.type!)
+    !version.hasPages && ["slides", "docs", "cad"].includes(version.type!)
   );
 };
 
