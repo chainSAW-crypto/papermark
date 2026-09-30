@@ -72,11 +72,22 @@ const CustomMetaTag = ({
         </>
       )}
 
-      {/* meta image */}
-      {enableBranding && imageUrl && (
+      {/* meta image: with custom branding on, Papermark's default image from
+          pages/_app.tsx must never show. Without a custom image, fall back to
+          an uploaded favicon (absolute URL; the "/favicon.ico" default is
+          Papermark's), otherwise leave the image empty. */}
+      {enableBranding && (
         <>
-          <meta property="og:image" content={imageUrl} key="og-image" />
-          <meta name="twitter:image" content={imageUrl} key="tw-image" />
+          <meta
+            property="og:image"
+            content={imageUrl || (favicon?.startsWith("http") ? favicon : "")}
+            key="og-image"
+          />
+          <meta
+            name="twitter:image"
+            content={imageUrl || (favicon?.startsWith("http") ? favicon : "")}
+            key="tw-image"
+          />
         </>
       )}
     </Head>
