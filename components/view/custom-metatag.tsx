@@ -50,18 +50,23 @@ const CustomMetaTag = ({
         </>
       )}
 
-      {/* meta description */}
-      {enableBranding && description && (
+      {/* meta description: with custom branding on, an empty description
+          still replaces Papermark's default one (same keys as pages/_app.tsx) */}
+      {enableBranding && (
         <>
-          <meta name="description" content={description} key="description" />
+          <meta
+            name="description"
+            content={description ?? ""}
+            key="description"
+          />
           <meta
             property="og:description"
-            content={description}
+            content={description ?? ""}
             key="og-description"
           />
           <meta
             name="twitter:description"
-            content={description}
+            content={description ?? ""}
             key="tw-description"
           />
         </>
