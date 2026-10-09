@@ -82,7 +82,8 @@ const putFileInVercel = async (file: File) => {
 
 // Multipart upload threshold: 10MB
 const MULTIPART_THRESHOLD = 10 * 1024 * 1024;
-const PART_SIZE = 10 * 1024 * 1024; // 10MB chunks
+const PART_UPLOAD_ATTEMPTS = 4;
+const PART_SIZE = 5 * 1024 * 1024; // 5MB chunks (the S3 minimum): each request finishes quickly even on slow uplinks
 
 const putFileInS3 = async ({
   file,
@@ -262,27 +263,41 @@ const putFileMultipart = async ({
       const end = Math.min(start + PART_SIZE, file.size);
       const chunk = file.slice(start, end);
 
-      const response = await fetch(url, {
-        method: "PUT",
-        body: chunk,
-      });
+      // A part can fail on its own (proxy timeout, storage briefly busy,
+      // flaky connection); uploading the same part again replaces it, so
+      // retry a few times before failing the whole upload.
+      for (let attempt = 1; ; attempt++) {
+        try {
+          const response = await fetch(url, {
+            method: "PUT",
+            body: chunk,
+          });
 
-      if (!response.ok) {
-        throw new Error(
-          `Failed to upload part ${partNumber}, status: ${response.status}`,
-        );
+          if (!response.ok) {
+            throw new Error(
+              `Failed to upload part ${partNumber}, status: ${response.status}`,
+            );
+          }
+
+          const etag = response.headers.get("ETag");
+          if (!etag) {
+            throw new Error(`Missing ETag in response for part ${partNumber}`);
+          }
+
+          return { PartNumber: partNumber, ETag: etag };
+        } catch (error) {
+          if (attempt >= PART_UPLOAD_ATTEMPTS) throw error;
+          await new Promise((resolve) =>
+            setTimeout(resolve, 1000 * 2 ** (attempt - 1)),
+          );
+        }
       }
-
-      const etag = response.headers.get("ETag");
-      if (!etag) {
-        throw new Error(`Missing ETag in response for part ${partNumber}`);
-      }
-
-      return { PartNumber: partNumber, ETag: etag };
     };
 
     // Upload parts in batches to avoid overwhelming the connection
-    const batchSize = 5;
+    // Two at a time: parallel parts share the uploader's bandwidth, and with
+    // five each request took long enough to hit proxy timeouts
+    const batchSize = 2;
     const parts: Array<{ PartNumber: number; ETag: string }> = [];
 
     for (let i = 0; i < urls.length; i += batchSize) {
