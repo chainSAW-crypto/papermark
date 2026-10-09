@@ -594,21 +594,11 @@ export function DataroomItemsList({
           setUploads((prevUploads) => [...prevUploads, ...newUploads]);
           setShowDrawer(true);
         }}
-        onUploadProgress={(index, progress, documentId) => {
-          setUploads((prevUploads) => {
-            const recentBatchStartIndex = prevUploads.length - index - 1;
-            if (
-              recentBatchStartIndex < 0 ||
-              recentBatchStartIndex >= prevUploads.length
-            ) {
-              return prevUploads;
-            }
-            return prevUploads.map((upload, i) =>
-              i === recentBatchStartIndex
-                ? { ...upload, progress, documentId }
-                : upload,
-            );
-          });
+        onUploadProgress={() => {
+          // UploadZone already updates this upload's entry (matched by uploadId)
+          // through setUploads. Recomputing the entry from the file index here
+          // picked the wrong row for multi-file drops, so finished files showed
+          // as stuck mid-upload.
         }}
         onUploadSuccess={handleUploadSuccess}
         onUploadRejected={(rejected) => {

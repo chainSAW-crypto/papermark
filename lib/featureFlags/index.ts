@@ -34,10 +34,16 @@ export const getFeatureFlags = async ({ teamId }: { teamId?: string }) => {
     workflows: false,
   };
 
-  // Return all features as true if edge config is not available
+  // Return all features as true if edge config is not available, except US
+  // storage: that needs a second bucket (NEXT_PRIVATE_UPLOAD_BUCKET_US), and
+  // without one every file request logged "Failed to resolve storage region"
+  // before falling back to the default bucket anyway
   if (!process.env.EDGE_CONFIG) {
     return Object.fromEntries(
-      Object.entries(teamFeatures).map(([key, _v]) => [key, true]),
+      Object.entries(teamFeatures).map(([key, _v]) => [
+        key,
+        key === "usStorage" ? !!process.env.NEXT_PRIVATE_UPLOAD_BUCKET_US : true,
+      ]),
     );
   } else if (!teamId) {
     return teamFeatures;
